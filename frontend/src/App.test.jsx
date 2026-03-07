@@ -57,9 +57,41 @@ describe('App', () => {
             netAnnual: 33395.52,
           },
           history: [
-            { iteration: 24, spousalSupportAnnual: 22000, recipientSharePercent: 39.7 },
-            { iteration: 25, spousalSupportAnnual: 22125, recipientSharePercent: 39.9 },
-            { iteration: 26, spousalSupportAnnual: 22181.64, recipientSharePercent: 40.0 },
+            {
+              iteration: 22,
+              spousalSupportAnnual: 21000,
+              recipientSharePercent: 39.1,
+              ndiPayor: 114920.0,
+              ndiRecipient: 73583.0,
+            },
+            {
+              iteration: 23,
+              spousalSupportAnnual: 21500,
+              recipientSharePercent: 39.4,
+              ndiPayor: 114102.0,
+              ndiRecipient: 74401.0,
+            },
+            {
+              iteration: 24,
+              spousalSupportAnnual: 22000,
+              recipientSharePercent: 39.7,
+              ndiPayor: 113480.0,
+              ndiRecipient: 75023.0,
+            },
+            {
+              iteration: 25,
+              spousalSupportAnnual: 22125,
+              recipientSharePercent: 39.9,
+              ndiPayor: 113230.0,
+              ndiRecipient: 75273.0,
+            },
+            {
+              iteration: 26,
+              spousalSupportAnnual: 22181.64,
+              recipientSharePercent: 40.0,
+              ndiPayor: 113102.24,
+              ndiRecipient: 75400.99,
+            },
           ],
         })
       }
@@ -156,7 +188,11 @@ describe('App', () => {
       'aria-expanded',
       'true',
     )
-    expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
+    expect(await screen.findByRole('img', { name: 'NDI convergence chart' })).toBeInTheDocument()
+    expect(screen.queryByRole('table', { name: 'Recent iterations' })).not.toBeInTheDocument()
+    expect(await screen.findByText('NDI convergence')).toBeInTheDocument()
+    expect(await screen.findByText('Payor NDI')).toBeInTheDocument()
+    expect(await screen.findByText('Recipient NDI')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support calculations')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
@@ -200,5 +236,28 @@ describe('App', () => {
     expect(screen.getByLabelText('Children under 6')).toHaveValue(0)
     expect(screen.getByLabelText('Target minimum %')).toHaveValue(40)
     expect(screen.getByText('40% to 46% recipient NDI')).toBeInTheDocument()
+  })
+
+  it('allows editing gross income directly from the net income table', async () => {
+    render(<App />)
+
+    await screen.findByRole('table', { name: 'Net income calculation' })
+    const initialFetchCount = globalThis.fetch.mock.calls.length
+
+    fireEvent.doubleClick(screen.getByText('$244,658'))
+
+    const payorGrossIncomeEditor = await screen.findByLabelText('Edit payor gross income')
+    fireEvent.change(payorGrossIncomeEditor, { target: { value: '250000' } })
+    fireEvent.keyDown(payorGrossIncomeEditor, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Payor income')).toHaveValue(250000)
+    })
+
+    expect(await screen.findByText('$250,000')).toBeInTheDocument()
   })
 })

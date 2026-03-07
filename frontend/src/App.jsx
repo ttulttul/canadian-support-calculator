@@ -494,6 +494,162 @@ function CurrencyCell({ value, signed = false }) {
   return <span className={className}>{content}</span>
 }
 
+function NdiConvergenceChart({ history }) {
+  const chartHistory = history.filter(
+    (entry) => Number.isFinite(entry.ndiPayor) && Number.isFinite(entry.ndiRecipient),
+  )
+  if (chartHistory.length === 0) {
+    return null
+  }
+
+  const width = 680
+  const height = 280
+  const padding = { top: 20, right: 24, bottom: 36, left: 80 }
+  const iterations = chartHistory.map((entry) => entry.iteration)
+  const ndiValues = chartHistory.flatMap((entry) => [entry.ndiPayor, entry.ndiRecipient])
+  const minIteration = Math.min(...iterations)
+  const maxIteration = Math.max(...iterations)
+  const minValue = Math.min(...ndiValues)
+  const maxValue = Math.max(...ndiValues)
+  const valuePadding = Math.max((maxValue - minValue) * 0.08, 1000)
+  const domainMin = minValue - valuePadding
+  const domainMax = maxValue + valuePadding
+  const plotWidth = width - padding.left - padding.right
+  const plotHeight = height - padding.top - padding.bottom
+  const xSpan = Math.max(maxIteration - minIteration, 1)
+  const ySpan = Math.max(domainMax - domainMin, 1)
+  const xAt = (iteration) => padding.left + ((iteration - minIteration) / xSpan) * plotWidth
+  const yAt = (value) => padding.top + (1 - (value - domainMin) / ySpan) * plotHeight
+  const toPoints = (key) =>
+    chartHistory.map((entry) => `${xAt(entry.iteration)},${yAt(entry[key])}`).join(' ')
+  const tickCount = 4
+  const yTicks = Array.from({ length: tickCount + 1 }, (_, index) => {
+    const value = domainMin + (ySpan * index) / tickCount
+    return {
+      value,
+      y: yAt(value),
+    }
+  })
+  const finalPoint = chartHistory[chartHistory.length - 1]
+  const payorColor = '#7d4e2d'
+  const recipientColor = '#2f6f5e'
+
+  return (
+    <figure className="convergence-chart">
+      <figcaption>NDI convergence</figcaption>
+      <div className="convergence-chart__legend" aria-hidden="true">
+        <span className="convergence-chart__legend-item">
+          <span
+            className="convergence-chart__legend-swatch"
+            style={{ backgroundColor: payorColor }}
+          />
+          Payor NDI
+        </span>
+        <span className="convergence-chart__legend-item">
+          <span
+            className="convergence-chart__legend-swatch"
+            style={{ backgroundColor: recipientColor }}
+          />
+          Recipient NDI
+        </span>
+      </div>
+      <svg
+        className="convergence-chart__svg"
+        viewBox={`0 0 ${width} ${height}`}
+        role="img"
+        aria-label="NDI convergence chart"
+      >
+        <title>NDI convergence chart</title>
+        {yTicks.map((tick) => (
+          <g key={tick.value}>
+            <line
+              x1={padding.left}
+              y1={tick.y}
+              x2={width - padding.right}
+              y2={tick.y}
+              className="convergence-chart__grid-line"
+            />
+            <text
+              x={padding.left - 10}
+              y={tick.y + 4}
+              textAnchor="end"
+              className="convergence-chart__axis-label"
+            >
+              {formatCurrency(tick.value)}
+            </text>
+          </g>
+        ))}
+        <line
+          x1={padding.left}
+          y1={height - padding.bottom}
+          x2={width - padding.right}
+          y2={height - padding.bottom}
+          className="convergence-chart__axis-line"
+        />
+        <line
+          x1={padding.left}
+          y1={padding.top}
+          x2={padding.left}
+          y2={height - padding.bottom}
+          className="convergence-chart__axis-line"
+        />
+        <polyline
+          fill="none"
+          stroke={payorColor}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={toPoints('ndiPayor')}
+        />
+        <polyline
+          fill="none"
+          stroke={recipientColor}
+          strokeWidth="3"
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          points={toPoints('ndiRecipient')}
+        />
+        <circle cx={xAt(finalPoint.iteration)} cy={yAt(finalPoint.ndiPayor)} r="4" fill={payorColor} />
+        <circle
+          cx={xAt(finalPoint.iteration)}
+          cy={yAt(finalPoint.ndiRecipient)}
+          r="4"
+          fill={recipientColor}
+        />
+        <text
+          x={Math.min(xAt(finalPoint.iteration) + 10, width - padding.right - 4)}
+          y={yAt(finalPoint.ndiPayor) - 10}
+          className="convergence-chart__series-label"
+        >
+          Payor {formatCurrency(finalPoint.ndiPayor)}
+        </text>
+        <text
+          x={Math.min(xAt(finalPoint.iteration) + 10, width - padding.right - 4)}
+          y={yAt(finalPoint.ndiRecipient) + 18}
+          className="convergence-chart__series-label"
+        >
+          Recipient {formatCurrency(finalPoint.ndiRecipient)}
+        </text>
+        <text
+          x={padding.left}
+          y={height - 10}
+          className="convergence-chart__axis-label"
+        >
+          Iteration {minIteration}
+        </text>
+        <text
+          x={width - padding.right}
+          y={height - 10}
+          textAnchor="end"
+          className="convergence-chart__axis-label"
+        >
+          Iteration {maxIteration}
+        </text>
+      </svg>
+    </figure>
+  )
+}
+
 function ResultTable({ caption, columns, rows, numericColumnIndexes = [] }) {
   return (
     <div className="table-wrap">
@@ -544,6 +700,7 @@ function App() {
   const [spousalError, setSpousalError] = useState('')
   const [metadataError, setMetadataError] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
+  const [editingGrossIncome, setEditingGrossIncome] = useState(null)
   const requestSequence = useRef(0)
 
   useEffect(() => {
@@ -674,7 +831,39 @@ function App() {
   }
 
   function handleReset() {
+    setEditingGrossIncome(null)
     setScenario(defaultScenario)
+  }
+
+  function beginGrossIncomeEdit(fieldName, annualValue) {
+    const displayValue = netIncomePeriod === 'monthly' ? annualValue / 12 : annualValue
+    setEditingGrossIncome({
+      fieldName,
+      value: String(Math.round(displayValue)),
+    })
+  }
+
+  function commitGrossIncomeEdit() {
+    if (!editingGrossIncome) {
+      return
+    }
+
+    const parsedValue = Number(editingGrossIncome.value)
+    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
+      setEditingGrossIncome(null)
+      return
+    }
+
+    const annualValue = netIncomePeriod === 'monthly' ? parsedValue * 12 : parsedValue
+    const nextScenario = {
+      ...scenario,
+      [editingGrossIncome.fieldName]: String(Math.round(annualValue)),
+    }
+    setEditingGrossIncome(null)
+    setScenario(nextScenario)
+    if (!autoRecalculate) {
+      void submitScenario(nextScenario)
+    }
   }
 
   const supportedChildren = metadata?.supportedChildren ?? []
@@ -689,12 +878,6 @@ function App() {
         ['Net transfer', formatCurrency(childResult.netMonthly), formatCurrency(childResult.netAnnual)],
       ]
     : []
-  const spousalHistoryRows =
-    spousalResult?.history.slice(-6).map((entry) => [
-      `#${entry.iteration}`,
-      formatCurrency(entry.spousalSupportAnnual),
-      formatPercent(entry.recipientSharePercent),
-    ]) ?? []
   const payorGrossIncome = spousalResult ? asNumber(spousalResult.payorIncome) : 0
   const spousalSupportAnnual = spousalResult
     ? asNumber(spousalResult.estimatedSpousalSupportAnnual)
@@ -833,6 +1016,7 @@ function App() {
     const signed = !unsignedNetIncomeLabels.has(label)
     const isEquivalentIncomeRow = label === 'Equivalent before-tax income'
     const isEmphasizedRow = emphasizedNetIncomeLabels.has(label)
+    const isGrossIncomeRow = label === 'Gross income'
     const rowClassName = [
       isEquivalentIncomeRow ? 'data-table__informational' : '',
       isEmphasizedRow ? 'data-table__emphasis' : '',
@@ -877,12 +1061,84 @@ function App() {
       {
         key: `${label}-payor`,
         className: rowClassName,
-        content: <CurrencyCell value={payorValue / scale} signed={signed} />,
+        content:
+          isGrossIncomeRow && editingGrossIncome?.fieldName === 'payorIncome' ? (
+            <input
+              className="data-table__input"
+              type="number"
+              min="0"
+              step="1"
+              aria-label="Edit payor gross income"
+              value={editingGrossIncome.value}
+              autoFocus
+              onChange={(event) =>
+                setEditingGrossIncome((current) =>
+                  current ? { ...current, value: event.target.value } : current,
+                )
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitGrossIncomeEdit()
+                }
+                if (event.key === 'Escape') {
+                  setEditingGrossIncome(null)
+                }
+              }}
+              onBlur={() => setEditingGrossIncome(null)}
+            />
+          ) : isGrossIncomeRow ? (
+            <button
+              type="button"
+              className="data-table__cell-button"
+              onDoubleClick={() => beginGrossIncomeEdit('payorIncome', payorGrossIncome)}
+            >
+              <CurrencyCell value={payorValue / scale} signed={signed} />
+            </button>
+          ) : (
+            <CurrencyCell value={payorValue / scale} signed={signed} />
+          ),
       },
       {
         key: `${label}-recipient`,
         className: rowClassName,
-        content: <CurrencyCell value={recipientValue / scale} signed={signed} />,
+        content:
+          isGrossIncomeRow && editingGrossIncome?.fieldName === 'recipientIncome' ? (
+            <input
+              className="data-table__input"
+              type="number"
+              min="0"
+              step="1"
+              aria-label="Edit recipient gross income"
+              value={editingGrossIncome.value}
+              autoFocus
+              onChange={(event) =>
+                setEditingGrossIncome((current) =>
+                  current ? { ...current, value: event.target.value } : current,
+                )
+              }
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  event.preventDefault()
+                  commitGrossIncomeEdit()
+                }
+                if (event.key === 'Escape') {
+                  setEditingGrossIncome(null)
+                }
+              }}
+              onBlur={() => setEditingGrossIncome(null)}
+            />
+          ) : isGrossIncomeRow ? (
+            <button
+              type="button"
+              className="data-table__cell-button"
+              onDoubleClick={() => beginGrossIncomeEdit('recipientIncome', recipientGrossIncome)}
+            >
+              <CurrencyCell value={recipientValue / scale} signed={signed} />
+            </button>
+          ) : (
+            <CurrencyCell value={recipientValue / scale} signed={signed} />
+          ),
       },
     ]
   })
@@ -1160,12 +1416,7 @@ function App() {
                         ]}
                         numericColumnIndexes={[1]}
                       />
-                      <ResultTable
-                        caption="Recent iterations"
-                        columns={['Iteration', 'Spousal support', 'Recipient NDI share']}
-                        rows={spousalHistoryRows}
-                        numericColumnIndexes={[1]}
-                      />
+                      <NdiConvergenceChart history={spousalResult.history} />
                     </section>
                   ) : null}
                 </div>

@@ -325,6 +325,32 @@
   text-align: right;
 }
 
+.data-table__cell-button {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: cell;
+}
+
+.data-table__input {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: #fffdf9;
+  color: var(--text-default);
+  font: inherit;
+  text-align: right;
+}
+
+.data-table__input:focus {
+  outline: 2px solid var(--focus);
+  outline-offset: 1px;
+}
+
 .data-table__informational {
   color: var(--text-muted);
   font-style: italic;
@@ -419,6 +445,63 @@
 .info-icon:focus-visible {
   border-radius: 999px;
   box-shadow: 0 0 0 2px var(--focus);
+}
+
+.convergence-chart {
+  margin: 18px 0 0;
+}
+
+.convergence-chart figcaption {
+  margin-bottom: 10px;
+  font-weight: 600;
+}
+
+.convergence-chart__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-bottom: 10px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+}
+
+.convergence-chart__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.convergence-chart__legend-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+}
+
+.convergence-chart__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.convergence-chart__grid-line {
+  stroke: rgba(125, 108, 89, 0.22);
+  stroke-width: 1;
+}
+
+.convergence-chart__axis-line {
+  stroke: rgba(125, 108, 89, 0.5);
+  stroke-width: 1.25;
+}
+
+.convergence-chart__axis-label,
+.convergence-chart__series-label {
+  fill: var(--text-muted);
+  font-size: 12px;
+}
+
+.convergence-chart__series-label {
+  font-weight: 600;
 }
 
 .empty-state,
