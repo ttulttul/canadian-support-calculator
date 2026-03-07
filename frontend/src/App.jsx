@@ -1,14 +1,7 @@
 import { useEffect, useEffectEvent, useState } from 'react'
 import './App.css'
 
-const defaultChildForm = {
-  jurisdiction: 'BC',
-  children: '2',
-  payorIncome: '244658',
-  recipientIncome: '30600',
-}
-
-const defaultSpousalForm = {
+const defaultScenario = {
   jurisdiction: 'BC',
   children: '2',
   payorIncome: '244658',
@@ -46,25 +39,54 @@ async function postJson(url, payload) {
   return data
 }
 
-function MetricCard({ label, value, tone = 'default' }) {
+function DetailList({ items, emphasis = false }) {
   return (
-    <article className={`metric-card metric-card--${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
+    <dl className={`detail-list${emphasis ? ' detail-list--emphasis' : ''}`}>
+      {items.map((item) => (
+        <div key={item.label} className="detail-list__row">
+          <dt>{item.label}</dt>
+          <dd>{item.value}</dd>
+        </div>
+      ))}
+    </dl>
+  )
+}
+
+function ResultTable({ caption, columns, rows }) {
+  return (
+    <div className="table-wrap">
+      <table className="data-table">
+        <caption>{caption}</caption>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row[0]}>
+              {row.map((cell) => (
+                <td key={cell}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
 function App() {
   const [metadata, setMetadata] = useState(null)
-  const [childForm, setChildForm] = useState(defaultChildForm)
-  const [spousalForm, setSpousalForm] = useState(defaultSpousalForm)
+  const [scenario, setScenario] = useState(defaultScenario)
   const [childResult, setChildResult] = useState(null)
   const [spousalResult, setSpousalResult] = useState(null)
   const [childError, setChildError] = useState('')
   const [spousalError, setSpousalError] = useState('')
-  const [childLoading, setChildLoading] = useState(false)
-  const [spousalLoading, setSpousalLoading] = useState(false)
+  const [metadataError, setMetadataError] = useState('')
+  const [isCalculating, setIsCalculating] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -72,6 +94,10 @@ function App() {
     async function loadMetadata() {
       const response = await fetch('/api/metadata')
       const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Unable to load calculator metadata.')
+      }
+
       if (active) {
         setMetadata(data)
       }
@@ -79,8 +105,7 @@ function App() {
 
     loadMetadata().catch((error) => {
       if (active) {
-        setChildError(error.message)
-        setSpousalError(error.message)
+        setMetadataError(error.message)
       }
     })
 
@@ -89,60 +114,46 @@ function App() {
     }
   }, [])
 
-  const supportedChildren = metadata?.supportedChildren ?? [1, 2, 3, 4, 5, 6]
-
-  function updateForm(setter) {
-    return (event) => {
-      const { name, value } = event.target
-      setter((current) => ({ ...current, [name]: value }))
-    }
-  }
-
-  async function calculateChildSupport(event) {
-    event?.preventDefault()
-    setChildLoading(true)
+  async function submitScenario(activeScenario) {
+    setIsCalculating(true)
     setChildError('')
-
-    try {
-      const result = await postJson('/api/calculate/child-support', {
-        jurisdiction: childForm.jurisdiction,
-        children: Number(childForm.children),
-        payorIncome: Number(childForm.payorIncome),
-        recipientIncome: Number(childForm.recipientIncome),
-      })
-      setChildResult(result)
-    } catch (error) {
-      setChildError(error.message)
-    } finally {
-      setChildLoading(false)
-    }
-  }
-
-  async function calculateSpousalSupport(event) {
-    event?.preventDefault()
-    setSpousalLoading(true)
     setSpousalError('')
 
-    try {
-      const result = await postJson('/api/calculate/spousal-support', {
-        jurisdiction: spousalForm.jurisdiction,
-        children: Number(spousalForm.children),
-        payorIncome: Number(spousalForm.payorIncome),
-        recipientIncome: Number(spousalForm.recipientIncome),
-        targetMinPercent: Number(spousalForm.targetMinPercent),
-        targetMaxPercent: Number(spousalForm.targetMaxPercent),
-      })
-      setSpousalResult(result)
-    } catch (error) {
-      setSpousalError(error.message)
-    } finally {
-      setSpousalLoading(false)
+    const payload = {
+      jurisdiction: activeScenario.jurisdiction,
+      children: Number(activeScenario.children),
+      payorIncome: Number(activeScenario.payorIncome),
+      recipientIncome: Number(activeScenario.recipientIncome),
     }
+
+    const [childResponse, spousalResponse] = await Promise.allSettled([
+      postJson('/api/calculate/child-support', payload),
+      postJson('/api/calculate/spousal-support', {
+        ...payload,
+        targetMinPercent: Number(activeScenario.targetMinPercent),
+        targetMaxPercent: Number(activeScenario.targetMaxPercent),
+      }),
+    ])
+
+    if (childResponse.status === 'fulfilled') {
+      setChildResult(childResponse.value)
+    } else {
+      setChildResult(null)
+      setChildError(childResponse.reason.message)
+    }
+
+    if (spousalResponse.status === 'fulfilled') {
+      setSpousalResult(spousalResponse.value)
+    } else {
+      setSpousalResult(null)
+      setSpousalError(spousalResponse.reason.message)
+    }
+
+    setIsCalculating(false)
   }
 
-  const hydrateExamples = useEffectEvent(() => {
-    calculateChildSupport()
-    calculateSpousalSupport()
+  const hydrateScenario = useEffectEvent(() => {
+    void submitScenario(scenario)
   })
 
   useEffect(() => {
@@ -150,284 +161,271 @@ function App() {
       return
     }
 
-    hydrateExamples()
+    hydrateScenario()
   }, [metadata])
 
+  function handleScenarioChange(event) {
+    const { name, value } = event.target
+    setScenario((current) => ({ ...current, [name]: value }))
+  }
+
+  function handleSubmit(event) {
+    event.preventDefault()
+    void submitScenario(scenario)
+  }
+
+  function handleReset() {
+    setScenario(defaultScenario)
+  }
+
+  const supportedChildren = metadata?.supportedChildren ?? []
+  const childRows = childResult
+    ? [
+        ['Payor', formatCurrency(childResult.payorMonthly), formatCurrency(childResult.payorAnnual)],
+        [
+          'Recipient',
+          formatCurrency(childResult.recipientMonthly),
+          formatCurrency(childResult.recipientAnnual),
+        ],
+        ['Net transfer', formatCurrency(childResult.netMonthly), formatCurrency(childResult.netAnnual)],
+      ]
+    : []
+  const spousalHistoryRows =
+    spousalResult?.history.slice(-6).map((entry) => [
+      `#${entry.iteration}`,
+      formatCurrency(entry.spousalSupportAnnual),
+      formatPercent(entry.recipientSharePercent),
+    ]) ?? []
+
   return (
-    <main className="page-shell">
-      <section className="hero">
-        <p className="eyebrow">Guideline-driven support modelling</p>
-        <h1>Canadian Support Calculator</h1>
-        <p className="hero-copy">
-          Explore monthly offset child support and SSAG-style spousal support
-          estimates with a React client backed by a Flask API.
-        </p>
-        <p className="disclaimer">
-          {metadata?.disclaimer ??
-            'Loading BC child support table metadata and spousal support assumptions.'}
-        </p>
-      </section>
+    <div className="app-shell">
+      <header className="toolbar">
+        <div>
+          <h1>Canadian Support Calculator</h1>
+          <p>British Columbia child support and spousal support estimates.</p>
+        </div>
+        <div className="toolbar__meta">
+          <span>Flask API</span>
+          <span>React client</span>
+          {metadata ? <span>{metadata.jurisdictions[0].name}</span> : null}
+        </div>
+      </header>
 
-      <section className="content-grid">
-        <section className="panel">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Calculator one</p>
-              <h2>Child support</h2>
+      <main className="workspace">
+        <aside className="sidebar-panel">
+          <section className="panel-section">
+            <h2>Scenario</h2>
+            <form className="scenario-form" onSubmit={handleSubmit}>
+              <div className="form-grid">
+                <label>
+                  Jurisdiction
+                  <select
+                    name="jurisdiction"
+                    value={scenario.jurisdiction}
+                    onChange={handleScenarioChange}
+                  >
+                    <option value="BC">British Columbia</option>
+                  </select>
+                </label>
+
+                <label>
+                  Children
+                  <select
+                    name="children"
+                    value={scenario.children}
+                    onChange={handleScenarioChange}
+                  >
+                    {supportedChildren.map((count) => (
+                      <option key={count} value={count}>
+                        {count}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label>
+                  Payor income
+                  <input
+                    name="payorIncome"
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={scenario.payorIncome}
+                    onChange={handleScenarioChange}
+                  />
+                </label>
+
+                <label>
+                  Recipient income
+                  <input
+                    name="recipientIncome"
+                    type="number"
+                    min="0"
+                    step="100"
+                    value={scenario.recipientIncome}
+                    onChange={handleScenarioChange}
+                  />
+                </label>
+
+                <label>
+                  Target minimum %
+                  <input
+                    name="targetMinPercent"
+                    type="number"
+                    min="1"
+                    max="99"
+                    step="0.5"
+                    value={scenario.targetMinPercent}
+                    onChange={handleScenarioChange}
+                  />
+                </label>
+
+                <label>
+                  Target maximum %
+                  <input
+                    name="targetMaxPercent"
+                    type="number"
+                    min="1"
+                    max="99"
+                    step="0.5"
+                    value={scenario.targetMaxPercent}
+                    onChange={handleScenarioChange}
+                  />
+                </label>
+              </div>
+
+              <div className="form-actions">
+                <button type="submit" disabled={isCalculating}>
+                  {isCalculating ? 'Calculating' : 'Recalculate'}
+                </button>
+                <button type="button" className="button-secondary" onClick={handleReset}>
+                  Restore example
+                </button>
+              </div>
+            </form>
+          </section>
+
+          <section className="panel-section">
+            <h2>Reference</h2>
+            <DetailList
+              items={[
+                {
+                  label: 'Supported child counts',
+                  value: supportedChildren.length ? supportedChildren.join(', ') : 'Loading',
+                },
+                {
+                  label: 'Target range',
+                  value: `${scenario.targetMinPercent}% to ${scenario.targetMaxPercent}% recipient NDI`,
+                },
+                {
+                  label: 'Data note',
+                  value: metadata?.disclaimer ?? 'Loading',
+                },
+              ]}
+            />
+            {metadataError ? <p className="error-text">{metadataError}</p> : null}
+          </section>
+        </aside>
+
+        <section className="results-panel">
+          <section className="panel-section">
+            <div className="section-header">
+              <div>
+                <h2>Child support</h2>
+                <p>Monthly table amounts with offset calculation.</p>
+              </div>
+              {childResult ? <strong>{formatCurrency(childResult.netMonthly)}</strong> : null}
             </div>
-            <span className="tag">Monthly table amount</span>
-          </div>
 
-          <form className="calculator-form" onSubmit={calculateChildSupport}>
-            <label>
-              Jurisdiction
-              <select
-                name="jurisdiction"
-                value={childForm.jurisdiction}
-                onChange={updateForm(setChildForm)}
-              >
-                <option value="BC">British Columbia</option>
-              </select>
-            </label>
+            {childError ? <p className="error-text">{childError}</p> : null}
 
-            <label>
-              Children
-              <select
-                name="children"
-                value={childForm.children}
-                onChange={updateForm(setChildForm)}
-              >
-                {supportedChildren.map((children) => (
-                  <option key={children} value={children}>
-                    {children}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {childResult ? (
+              <>
+                <DetailList
+                  emphasis
+                  items={[
+                    {
+                      label: 'Transfer direction',
+                      value:
+                        childResult.direction === 'payor_to_recipient'
+                          ? 'Payor to recipient'
+                          : childResult.direction === 'recipient_to_payor'
+                            ? 'Recipient to payor'
+                            : 'No transfer',
+                    },
+                    { label: 'Net monthly transfer', value: formatCurrency(childResult.netMonthly) },
+                    { label: 'Net annual transfer', value: formatCurrency(childResult.netAnnual) },
+                  ]}
+                />
+                <ResultTable
+                  caption="Child support amounts"
+                  columns={['Party', 'Monthly', 'Annual']}
+                  rows={childRows}
+                />
+              </>
+            ) : (
+              <p className="empty-state">Results will appear here after the first calculation.</p>
+            )}
+          </section>
 
-            <label>
-              Payor income
-              <input
-                name="payorIncome"
-                type="number"
-                min="0"
-                step="100"
-                value={childForm.payorIncome}
-                onChange={updateForm(setChildForm)}
-              />
-            </label>
-
-            <label>
-              Recipient income
-              <input
-                name="recipientIncome"
-                type="number"
-                min="0"
-                step="100"
-                value={childForm.recipientIncome}
-                onChange={updateForm(setChildForm)}
-              />
-            </label>
-
-            <button type="submit" disabled={childLoading}>
-              {childLoading ? 'Calculating…' : 'Calculate child support'}
-            </button>
-          </form>
-
-          {childError ? <p className="error">{childError}</p> : null}
-
-          {childResult ? (
-            <div className="results-grid">
-              <MetricCard
-                label="Payor monthly table amount"
-                value={formatCurrency(childResult.payorMonthly)}
-                tone="warm"
-              />
-              <MetricCard
-                label="Recipient monthly table amount"
-                value={formatCurrency(childResult.recipientMonthly)}
-              />
-              <MetricCard
-                label="Net monthly transfer"
-                value={formatCurrency(Math.abs(childResult.netMonthly))}
-                tone="cool"
-              />
-              <MetricCard
-                label="Net annual transfer"
-                value={formatCurrency(Math.abs(childResult.netAnnual))}
-              />
+          <section className="panel-section">
+            <div className="section-header">
+              <div>
+                <h2>Spousal support</h2>
+                <p>Estimated annual payment to move the recipient into the selected NDI range.</p>
+              </div>
+              {spousalResult ? (
+                <strong>{formatCurrency(spousalResult.estimatedSpousalSupportMonthly)}</strong>
+              ) : null}
             </div>
-          ) : null}
 
-          {childResult ? (
-            <p className="result-note">
-              Direction:{' '}
-              {childResult.direction === 'payor_to_recipient'
-                ? 'payor to recipient'
-                : childResult.direction === 'recipient_to_payor'
-                  ? 'recipient to payor'
-                  : 'no transfer'}.
-            </p>
-          ) : null}
+            {spousalError ? <p className="error-text">{spousalError}</p> : null}
+
+            {spousalResult ? (
+              <>
+                <DetailList
+                  emphasis
+                  items={[
+                    {
+                      label: 'Estimated monthly spousal support',
+                      value: formatCurrency(spousalResult.estimatedSpousalSupportMonthly),
+                    },
+                    {
+                      label: 'Estimated annual spousal support',
+                      value: formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
+                    },
+                    {
+                      label: 'Recipient share of NDI',
+                      value: formatPercent(spousalResult.recipientSharePercent),
+                    },
+                    {
+                      label: 'Iterations',
+                      value: String(spousalResult.iterations),
+                    },
+                  ]}
+                />
+                <ResultTable
+                  caption="Net disposable income"
+                  columns={['Party', 'NDI']}
+                  rows={[
+                    ['Payor', formatCurrency(spousalResult.ndiPayor)],
+                    ['Recipient', formatCurrency(spousalResult.ndiRecipient)],
+                    ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
+                  ]}
+                />
+                <ResultTable
+                  caption="Recent iterations"
+                  columns={['Iteration', 'Spousal support', 'Recipient NDI share']}
+                  rows={spousalHistoryRows}
+                />
+              </>
+            ) : (
+              <p className="empty-state">Results will appear here after the first calculation.</p>
+            )}
+          </section>
         </section>
-
-        <section className="panel panel--accent">
-          <div className="panel-header">
-            <div>
-              <p className="panel-kicker">Calculator two</p>
-              <h2>Spousal support</h2>
-            </div>
-            <span className="tag">Annual estimate</span>
-          </div>
-
-          <form className="calculator-form" onSubmit={calculateSpousalSupport}>
-            <label>
-              Jurisdiction
-              <select
-                name="jurisdiction"
-                value={spousalForm.jurisdiction}
-                onChange={updateForm(setSpousalForm)}
-              >
-                <option value="BC">British Columbia</option>
-              </select>
-            </label>
-
-            <label>
-              Children
-              <select
-                name="children"
-                value={spousalForm.children}
-                onChange={updateForm(setSpousalForm)}
-              >
-                {supportedChildren.map((children) => (
-                  <option key={children} value={children}>
-                    {children}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label>
-              Payor income
-              <input
-                name="payorIncome"
-                type="number"
-                min="0"
-                step="100"
-                value={spousalForm.payorIncome}
-                onChange={updateForm(setSpousalForm)}
-              />
-            </label>
-
-            <label>
-              Recipient income
-              <input
-                name="recipientIncome"
-                type="number"
-                min="0"
-                step="100"
-                value={spousalForm.recipientIncome}
-                onChange={updateForm(setSpousalForm)}
-              />
-            </label>
-
-            <label>
-              Target min percent
-              <input
-                name="targetMinPercent"
-                type="number"
-                min="1"
-                max="99"
-                step="0.5"
-                value={spousalForm.targetMinPercent}
-                onChange={updateForm(setSpousalForm)}
-              />
-            </label>
-
-            <label>
-              Target max percent
-              <input
-                name="targetMaxPercent"
-                type="number"
-                min="1"
-                max="99"
-                step="0.5"
-                value={spousalForm.targetMaxPercent}
-                onChange={updateForm(setSpousalForm)}
-              />
-            </label>
-
-            <button type="submit" disabled={spousalLoading}>
-              {spousalLoading ? 'Calculating…' : 'Estimate spousal support'}
-            </button>
-          </form>
-
-          {spousalError ? <p className="error">{spousalError}</p> : null}
-
-          {spousalResult ? (
-            <>
-              <div className="results-grid">
-                <MetricCard
-                  label="Estimated monthly spousal support"
-                  value={formatCurrency(spousalResult.estimatedSpousalSupportMonthly)}
-                  tone="warm"
-                />
-                <MetricCard
-                  label="Estimated annual spousal support"
-                  value={formatCurrency(spousalResult.estimatedSpousalSupportAnnual)}
-                  tone="cool"
-                />
-                <MetricCard
-                  label="Recipient share of NDI"
-                  value={formatPercent(spousalResult.recipientSharePercent)}
-                />
-                <MetricCard
-                  label="Iterations"
-                  value={String(spousalResult.iterations)}
-                />
-              </div>
-
-              <div className="split-bar" aria-hidden="true">
-                <div
-                  className="split-bar__recipient"
-                  style={{ width: `${spousalResult.recipientSharePercent}%` }}
-                />
-              </div>
-
-              <div className="ndi-grid">
-                <MetricCard
-                  label="Payor NDI"
-                  value={formatCurrency(spousalResult.ndiPayor)}
-                />
-                <MetricCard
-                  label="Recipient NDI"
-                  value={formatCurrency(spousalResult.ndiRecipient)}
-                />
-                <MetricCard
-                  label="Net annual child support"
-                  value={formatCurrency(spousalResult.childSupport.netAnnual)}
-                />
-              </div>
-
-              <div className="history-table">
-                <div className="history-table__header">
-                  <span>Iteration</span>
-                  <span>Spousal support</span>
-                  <span>Recipient NDI share</span>
-                </div>
-                {spousalResult.history.slice(-6).map((entry) => (
-                  <div className="history-table__row" key={entry.iteration}>
-                    <span>{entry.iteration}</span>
-                    <span>{formatCurrency(entry.spousalSupportAnnual)}</span>
-                    <span>{formatPercent(entry.recipientSharePercent)}</span>
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : null}
-        </section>
-      </section>
-    </main>
+      </main>
+    </div>
   )
 }
 
