@@ -337,18 +337,22 @@
 
 .data-table__input {
   width: 100%;
-  padding: 6px 8px;
-  border: 1px solid var(--border-strong);
-  border-radius: 6px;
-  background: #fffdf9;
-  color: var(--text-default);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-sizing: border-box;
+  color: inherit;
   font: inherit;
+  line-height: inherit;
   text-align: right;
 }
 
 .data-table__input:focus {
   outline: 2px solid var(--focus);
-  outline-offset: 1px;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .data-table__informational {

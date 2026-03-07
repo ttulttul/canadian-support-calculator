@@ -247,6 +247,7 @@ describe('App', () => {
     fireEvent.doubleClick(screen.getByText('$244,658'))
 
     const payorGrossIncomeEditor = await screen.findByLabelText('Edit payor gross income')
+    expect(payorGrossIncomeEditor).toHaveClass('data-table__input')
     fireEvent.change(payorGrossIncomeEditor, { target: { value: '250000' } })
     fireEvent.keyDown(payorGrossIncomeEditor, { key: 'Enter', code: 'Enter' })
 
