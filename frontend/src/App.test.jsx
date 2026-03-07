@@ -49,10 +49,6 @@ describe('App', () => {
           childrenUnderSix: payload.childrenUnderSix,
           payorIncome: payload.payorIncome,
           recipientIncome: payload.recipientIncome,
-          payorTaxBeforeSupportDeduction: 86141.98,
-          payorTaxDeductionBenefit: 10163.38,
-          recipientTaxBeforeSupportInclusion: 4200.11,
-          recipientTaxSupportCost: 3270.54,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -112,11 +108,19 @@ describe('App', () => {
     expect(await screen.findByRole('table', { name: 'Government benefits' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
     expect(await screen.findByText('-$33,396')).toBeInTheDocument()
-    expect(await screen.findByText('+$10,163')).toBeInTheDocument()
-    expect(await screen.findByText('-$86,142')).toBeInTheDocument()
-    expect(await screen.findByText('-$3,271')).toBeInTheDocument()
+    expect(await screen.findByText('+$10,707')).toBeInTheDocument()
+    expect(await screen.findByText('-$86,685')).toBeInTheDocument()
+    expect(await screen.findByText('-$4,638')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Annual' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Monthly' }))
+
+    expect(screen.getByRole('button', { name: 'Monthly' })).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByRole('columnheader', { name: 'Payor Monthly amount' })).toBeInTheDocument()
+    expect(screen.getByText('+$892')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
 

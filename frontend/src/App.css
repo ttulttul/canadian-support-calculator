@@ -79,6 +79,28 @@
   font-weight: 600;
 }
 
+.view-toggle {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  overflow: hidden;
+  background: #fffdf9;
+}
+
+.view-toggle button {
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.view-toggle .is-active {
+  background: var(--button);
+  color: #fff;
+}
+
 .scenario-form {
   margin-top: 16px;
 }

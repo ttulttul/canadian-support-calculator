@@ -12,6 +12,33 @@ const defaultScenario = {
   targetMaxPercent: '46',
 }
 
+const baseTaxYear = 2023
+const defaultExtrapolationRate = 0.025
+const combinedApproxTaxBrackets2023 = [
+  [0, 45654, 20.06],
+  [45654, 53359, 22.7],
+  [53359, 91310, 28.2],
+  [91310, 104835, 31.0],
+  [104835, 106717, 32.79],
+  [106717, 127299, 38.29],
+  [127299, 165430, 40.7],
+  [165430, 172602, 44.02],
+  [172602, 235675, 46.12],
+  [235675, 240716, 49.8],
+  [240716, Number.POSITIVE_INFINITY, 53.5],
+]
+const knownTaxYearIndexFactors = {
+  2017: 45916 / 53359,
+  2018: 46605 / 53359,
+  2019: 47630 / 53359,
+  2020: 48535 / 53359,
+  2021: 49020 / 53359,
+  2022: 50197 / 53359,
+  2023: 1,
+  2024: 55867 / 53359,
+  2025: 57375 / 53359,
+}
+
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-CA', {
     style: 'currency',
@@ -36,6 +63,43 @@ function formatSignedCurrency(value) {
 
 function asNumber(value, fallback = 0) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback
+}
+
+function resolveTaxYearIndexFactor(taxYear) {
+  if (taxYear in knownTaxYearIndexFactors) {
+    return knownTaxYearIndexFactors[taxYear]
+  }
+
+  const knownYears = Object.keys(knownTaxYearIndexFactors).map(Number)
+  const minYear = Math.min(...knownYears)
+  const maxYear = Math.max(...knownYears)
+
+  if (taxYear < minYear) {
+    const years = minYear - taxYear
+    return knownTaxYearIndexFactors[minYear] / (1 + defaultExtrapolationRate) ** years
+  }
+
+  const years = taxYear - maxYear
+  return knownTaxYearIndexFactors[maxYear] * (1 + defaultExtrapolationRate) ** years
+}
+
+function calculateApproxBcTax(income, taxYear) {
+  const normalizedIncome = Math.max(asNumber(income), 0)
+  const factor = resolveTaxYearIndexFactor(taxYear)
+  let tax = 0
+
+  for (const [lower, upper, rate] of combinedApproxTaxBrackets2023) {
+    const indexedLower = lower * factor
+    const indexedUpper = upper === Number.POSITIVE_INFINITY ? upper : upper * factor
+    if (normalizedIncome <= indexedLower) {
+      break
+    }
+
+    const taxableAmount = Math.min(normalizedIncome, indexedUpper) - indexedLower
+    tax += taxableAmount * rate / 100
+  }
+
+  return Number(tax.toFixed(2))
 }
 
 async function postJson(url, payload) {
@@ -98,6 +162,7 @@ function App() {
   const [metadata, setMetadata] = useState(null)
   const [scenario, setScenario] = useState(defaultScenario)
   const [autoRecalculate, setAutoRecalculate] = useState(true)
+  const [netIncomePeriod, setNetIncomePeriod] = useState('annual')
   const [childResult, setChildResult] = useState(null)
   const [spousalResult, setSpousalResult] = useState(null)
   const [childError, setChildError] = useState('')
@@ -277,11 +342,26 @@ function App() {
     bcClimateActionCreditAnnual: 0,
     totalAnnual: 0,
   }
+  const activeTaxYear = spousalResult ? asNumber(spousalResult.taxYear, baseTaxYear) : baseTaxYear
+  const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
+  const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
+  const payorTaxAfterSupport = spousalResult
+    ? asNumber(
+        spousalResult.payorTax,
+        calculateApproxBcTax(payorGrossIncome - spousalSupportAnnual, activeTaxYear),
+      )
+    : 0
   const payorTaxBeforeSupportDeduction = spousalResult
-    ? asNumber(spousalResult.payorTaxBeforeSupportDeduction, asNumber(spousalResult.payorTax))
+    ? asNumber(
+        spousalResult.payorTaxBeforeSupportDeduction,
+        calculateApproxBcTax(payorGrossIncome, activeTaxYear),
+      )
     : 0
   const payorTaxDeductionBenefit = spousalResult
-    ? asNumber(spousalResult.payorTaxDeductionBenefit)
+    ? asNumber(
+        spousalResult.payorTaxDeductionBenefit,
+        Math.max(payorTaxBeforeSupportDeduction - payorTaxAfterSupport, 0),
+      )
     : 0
   const payorGovernmentBenefits = spousalResult
     ? asNumber(payorBenefitBreakdown.totalAnnual)
@@ -289,60 +369,48 @@ function App() {
   const recipientGovernmentBenefits = spousalResult
     ? asNumber(recipientBenefitBreakdown.totalAnnual)
     : 0
-  const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
-  const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
   const recipientTaxBeforeSupportInclusion = spousalResult
     ? asNumber(
         spousalResult.recipientTaxBeforeSupportInclusion,
-        asNumber(spousalResult.recipientTax),
+        calculateApproxBcTax(recipientGrossIncome, activeTaxYear),
       )
     : 0
   const recipientTaxSupportCost = spousalResult
-    ? asNumber(spousalResult.recipientTaxSupportCost)
+    ? asNumber(
+        spousalResult.recipientTaxSupportCost,
+        Math.max(
+          asNumber(
+            spousalResult.recipientTax,
+            calculateApproxBcTax(recipientGrossIncome + spousalSupportAnnual, activeTaxYear),
+          ) - recipientTaxBeforeSupportInclusion,
+          0,
+        ),
+      )
     : 0
-  const netIncomeRows = spousalResult
+  const netIncomeDivisor = netIncomePeriod === 'monthly' ? 12 : 1
+  const netIncomeColumnLabel = netIncomePeriod === 'monthly' ? 'Monthly amount' : 'Annual amount'
+  const netIncomeRawRows = spousalResult
     ? [
-        [
-          'Gross income',
-          formatCurrency(payorGrossIncome),
-          formatCurrency(recipientGrossIncome),
-        ],
-        [
-          'Child support',
-          formatSignedCurrency(-childSupportAnnual),
-          formatSignedCurrency(childSupportAnnual),
-        ],
-        [
-          'Spousal support (pre-tax)',
-          formatSignedCurrency(-spousalSupportAnnual),
-          formatSignedCurrency(spousalSupportAnnual),
-        ],
-        [
-          'Spousal support (tax deduction)',
-          formatSignedCurrency(payorTaxDeductionBenefit),
-          formatSignedCurrency(-recipientTaxSupportCost),
-        ],
-        [
-          'Income tax',
-          formatSignedCurrency(-payorTaxBeforeSupportDeduction),
-          formatSignedCurrency(-recipientTaxBeforeSupportInclusion),
-        ],
+        ['Gross income', payorGrossIncome, recipientGrossIncome],
+        ['Child support', -childSupportAnnual, childSupportAnnual],
+        ['Spousal support (pre-tax)', -spousalSupportAnnual, spousalSupportAnnual],
+        ['Spousal support (tax deduction)', payorTaxDeductionBenefit, -recipientTaxSupportCost],
+        ['Income tax', -payorTaxBeforeSupportDeduction, -recipientTaxBeforeSupportInclusion],
         ...((payorGovernmentBenefits > 0 || recipientGovernmentBenefits > 0)
-          ? [
-              [
-                'Government benefits',
-                formatSignedCurrency(payorGovernmentBenefits),
-                formatSignedCurrency(recipientGovernmentBenefits),
-              ],
-            ]
+          ? [['Government benefits', payorGovernmentBenefits, recipientGovernmentBenefits]]
           : []),
-        [
-          'Estimated net income',
-          formatCurrency(payorNetIncome),
-          formatCurrency(recipientNetIncome),
-        ],
+        ['Estimated net income', payorNetIncome, recipientNetIncome],
       ]
     : []
+  const netIncomeDisplayRows = netIncomeRawRows.map(([label, payorValue, recipientValue]) => {
+    const scale = netIncomeDivisor
+    const formatter =
+      label === 'Estimated net income' || label === 'Gross income'
+        ? formatCurrency
+        : formatSignedCurrency
+
+    return [label, formatter(payorValue / scale), formatter(recipientValue / scale)]
+  })
   const benefitRows = spousalResult
     ? [
         [
@@ -565,6 +633,24 @@ function App() {
                 <h2>Net Income</h2>
                 <p>Estimated annual income after tax, child support, spousal support, and benefits.</p>
               </div>
+              <div className="view-toggle" role="group" aria-label="Net income period">
+                <button
+                  type="button"
+                  className={netIncomePeriod === 'annual' ? 'is-active' : ''}
+                  aria-pressed={netIncomePeriod === 'annual'}
+                  onClick={() => setNetIncomePeriod('annual')}
+                >
+                  Annual
+                </button>
+                <button
+                  type="button"
+                  className={netIncomePeriod === 'monthly' ? 'is-active' : ''}
+                  aria-pressed={netIncomePeriod === 'monthly'}
+                  onClick={() => setNetIncomePeriod('monthly')}
+                >
+                  Monthly
+                </button>
+              </div>
             </div>
 
             {spousalError ? <p className="error-text">{spousalError}</p> : null}
@@ -572,8 +658,8 @@ function App() {
             {spousalResult ? (
               <ResultTable
                 caption="Net income calculation"
-                columns={['Component', 'Payor', 'Recipient']}
-                rows={netIncomeRows}
+                columns={['Component', `Payor ${netIncomeColumnLabel}`, `Recipient ${netIncomeColumnLabel}`]}
+                rows={netIncomeDisplayRows}
               />
             ) : (
               <p className="empty-state">Results will appear here after the first calculation.</p>
