@@ -37,6 +37,20 @@ def build_frontend_command(port: int) -> list[str]:
     return ["npm", "run", "dev", "--", "--host", HOST, "--port", str(port)]
 
 
+def build_backend_env(port: int) -> dict[str, str]:
+    env = os.environ.copy()
+    env["HOST"] = HOST
+    env["PORT"] = str(port)
+    env["FLASK_DEBUG"] = "1"
+    return env
+
+
+def build_frontend_env(backend_port: int) -> dict[str, str]:
+    env = os.environ.copy()
+    env["BACKEND_PORT"] = str(backend_port)
+    return env
+
+
 def terminate_process(process: subprocess.Popen) -> None:
     if process.poll() is not None:
         return
@@ -64,12 +78,8 @@ def run() -> int:
     backend_port = find_available_port(DEFAULT_BACKEND_PORT)
     frontend_port = find_available_port(DEFAULT_FRONTEND_PORT)
 
-    backend_env = os.environ.copy()
-    backend_env["HOST"] = HOST
-    backend_env["PORT"] = str(backend_port)
-
-    frontend_env = os.environ.copy()
-    frontend_env["BACKEND_PORT"] = str(backend_port)
+    backend_env = build_backend_env(backend_port)
+    frontend_env = build_frontend_env(backend_port)
 
     logger.info("Starting backend on http://%s:%s", HOST, backend_port)
     backend_process = subprocess.Popen(

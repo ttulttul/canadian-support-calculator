@@ -19,6 +19,7 @@ uv run python run_dev.py
 ```
 
 The launcher starts Flask and Vite together, beginning with ports `5001` and `5173`. If either port is already in use, it increments until it finds an available port and wires the frontend proxy to the selected backend port automatically.
+The launcher also enables Flask reload mode, so backend source changes are picked up automatically while developing.
 
 ### Backend
 
