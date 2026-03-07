@@ -291,6 +291,52 @@ function formatEditableCurrency(value) {
   return `$${formattedIntegerPart}`
 }
 
+function deriveNextScenario(currentScenario, change, maxSupportedChildren) {
+  const { name, value, type, checked } = change
+
+  if (name === 'useSeparateSpousalIncomes') {
+    return { ...currentScenario, useSeparateSpousalIncomes: checked }
+  }
+
+  if (name === 'children') {
+    const nextChildren = value
+    const nextChildrenUnderSix = Math.min(
+      Number(currentScenario.childrenUnderSix || 0),
+      Number(nextChildren || 0),
+    )
+    return {
+      ...currentScenario,
+      children: nextChildren,
+      childrenUnderSix: String(nextChildrenUnderSix),
+    }
+  }
+
+  if (name === 'childrenUnderSix') {
+    const boundedValue = Math.min(Math.max(Number(value || 0), 0), maxSupportedChildren)
+    return {
+      ...currentScenario,
+      children: String(Math.max(Number(currentScenario.children || 0), boundedValue)),
+      childrenUnderSix: String(boundedValue),
+    }
+  }
+
+  return { ...currentScenario, [name]: type === 'checkbox' ? checked : value }
+}
+
+function scenarioHasRequiredFields(activeScenario) {
+  const requiredFields = [
+    activeScenario.children,
+    activeScenario.childrenUnderSix,
+    activeScenario.taxYear,
+    activeScenario.payorIncome,
+    activeScenario.recipientIncome,
+    activeScenario.targetMinPercent,
+    activeScenario.targetMaxPercent,
+  ]
+
+  return !requiredFields.some((value) => value === '')
+}
+
 function scaleConfig(configs, taxYear) {
   if (taxYear in configs) {
     return configs[taxYear]
@@ -834,21 +880,12 @@ function App() {
     setIsCalculating(false)
   }
 
-  const submitCurrentScenario = useEffectEvent((activeScenario) => {
-    const requiredFields = [
-      activeScenario.children,
-      activeScenario.childrenUnderSix,
-      activeScenario.taxYear,
-      activeScenario.payorIncome,
-      activeScenario.recipientIncome,
-      activeScenario.targetMinPercent,
-      activeScenario.targetMaxPercent,
-    ]
-    if (requiredFields.some((value) => value === '')) {
+  const submitCurrentScenario = useEffectEvent(() => {
+    if (!scenarioHasRequiredFields(scenario)) {
       return
     }
 
-    void submitScenario(activeScenario)
+    void submitScenario(scenario)
   })
 
   useEffect(() => {
@@ -856,40 +893,16 @@ function App() {
       return
     }
 
-    submitCurrentScenario(scenario)
-  }, [autoRecalculate, metadata, scenario])
+    submitCurrentScenario()
+  }, [autoRecalculate, metadata])
 
   function handleScenarioChange(event) {
-    const { name, value, type, checked } = event.target
-    setScenario((current) => {
-      if (name === 'useSeparateSpousalIncomes') {
-        return { ...current, useSeparateSpousalIncomes: checked }
-      }
+    const nextScenario = deriveNextScenario(scenario, event.target, maxSupportedChildren)
+    setScenario(nextScenario)
 
-      if (name === 'children') {
-        const nextChildren = value
-        const nextChildrenUnderSix = Math.min(
-          Number(current.childrenUnderSix || 0),
-          Number(nextChildren || 0),
-        )
-        return {
-          ...current,
-          children: nextChildren,
-          childrenUnderSix: String(nextChildrenUnderSix),
-        }
-      }
-
-      if (name === 'childrenUnderSix') {
-        const boundedValue = Math.min(Math.max(Number(value || 0), 0), maxSupportedChildren)
-        return {
-          ...current,
-          children: String(Math.max(Number(current.children || 0), boundedValue)),
-          childrenUnderSix: String(boundedValue),
-        }
-      }
-
-      return { ...current, [name]: type === 'checkbox' ? checked : value }
-    })
+    if (autoRecalculate && metadata && scenarioHasRequiredFields(nextScenario)) {
+      void submitScenario(nextScenario)
+    }
   }
 
   function handleSubmit(event) {
@@ -900,6 +913,10 @@ function App() {
   function handleReset() {
     setEditingGrossIncome(null)
     setScenario(defaultScenario)
+
+    if (autoRecalculate && metadata && scenarioHasRequiredFields(defaultScenario)) {
+      void submitScenario(defaultScenario)
+    }
   }
 
   function beginGrossIncomeEdit(fieldName, annualValue) {
@@ -924,7 +941,7 @@ function App() {
     }
 
     setScenario(nextScenario)
-    if (!autoRecalculate) {
+    if (autoRecalculate && metadata && scenarioHasRequiredFields(nextScenario)) {
       void submitScenario(nextScenario)
     }
     if (finalize) {

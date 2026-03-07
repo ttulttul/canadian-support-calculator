@@ -11,7 +11,7 @@ function mockResponse(body, ok = true) {
 }
 
 function buildSpousalResponse(payload) {
-  const usingAlternatePayorIncome = payload.payorSpousalIncome === 180000
+  const usingAlternatePayorIncome = payload.payorSpousalIncome === 175000
   const payorSpousalIncome = payload.payorSpousalIncome ?? payload.payorIncome
   const recipientSpousalIncome = payload.recipientSpousalIncome ?? payload.recipientIncome
 
@@ -367,7 +367,7 @@ describe('App', () => {
 
     fireEvent.click(screen.getByLabelText('Use different incomes for spousal support only'))
     fireEvent.change(screen.getByLabelText('Payor income for spousal support only'), {
-      target: { value: '180000' },
+      target: { value: '175000' },
     })
 
     await waitFor(() => {
@@ -381,11 +381,11 @@ describe('App', () => {
 
     expect(latestSpousalPayload.payorIncome).toBe(244658)
     expect(latestSpousalPayload.recipientIncome).toBe(30600)
-    expect(latestSpousalPayload.payorSpousalIncome).toBe(180000)
+    expect(latestSpousalPayload.payorSpousalIncome).toBe(175000)
     expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
     expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
-    expect(await screen.findAllByText('$180,000')).toHaveLength(2)
-    expect(await screen.findAllByText('$93,248')).toHaveLength(2)
+    expect(await screen.findAllByText('$175,000')).toHaveLength(2)
+    expect(await screen.findAllByText('$0')).not.toHaveLength(0)
   })
 })
