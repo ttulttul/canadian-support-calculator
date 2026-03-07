@@ -132,23 +132,49 @@ function DetailList({ items, emphasis = false }) {
   )
 }
 
-function ResultTable({ caption, columns, rows }) {
+function CurrencyCell({ value, signed = false }) {
+  const amount = asNumber(value)
+  const className = signed
+    ? amount > 0
+      ? 'signed-value signed-value--positive'
+      : amount < 0
+        ? 'signed-value signed-value--negative'
+        : 'signed-value'
+    : ''
+  const content = signed ? formatSignedCurrency(amount) : formatCurrency(amount)
+
+  return <span className={className}>{content}</span>
+}
+
+function ResultTable({ caption, columns, rows, numericColumnIndexes = [] }) {
   return (
     <div className="table-wrap">
       <table className="data-table">
         <caption>{caption}</caption>
         <thead>
           <tr>
-            {columns.map((column) => (
-              <th key={column}>{column}</th>
+            {columns.map((column, index) => (
+              <th
+                key={column}
+                className={numericColumnIndexes.includes(index) ? 'data-table__numeric' : ''}
+              >
+                {column}
+              </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row[0]}>
-              {row.map((cell) => (
-                <td key={cell}>{cell}</td>
+              {row.map((cell, index) => (
+                <td
+                  key={typeof cell === 'object' && cell !== null ? cell.key : `${row[0]}-${index}`}
+                  className={`${numericColumnIndexes.includes(index) ? 'data-table__numeric' : ''} ${
+                    typeof cell === 'object' && cell !== null && cell.className ? cell.className : ''
+                  }`.trim()}
+                >
+                  {typeof cell === 'object' && cell !== null ? cell.content : cell}
+                </td>
               ))}
             </tr>
           ))}
@@ -163,6 +189,7 @@ function App() {
   const [scenario, setScenario] = useState(defaultScenario)
   const [autoRecalculate, setAutoRecalculate] = useState(true)
   const [netIncomePeriod, setNetIncomePeriod] = useState('annual')
+  const [spousalDetailsOpen, setSpousalDetailsOpen] = useState(false)
   const [childResult, setChildResult] = useState(null)
   const [spousalResult, setSpousalResult] = useState(null)
   const [childError, setChildError] = useState('')
@@ -363,9 +390,6 @@ function App() {
         Math.max(payorTaxBeforeSupportDeduction - payorTaxAfterSupport, 0),
       )
     : 0
-  const payorGovernmentBenefits = spousalResult
-    ? asNumber(payorBenefitBreakdown.totalAnnual)
-    : 0
   const recipientGovernmentBenefits = spousalResult
     ? asNumber(recipientBenefitBreakdown.totalAnnual)
     : 0
@@ -395,57 +419,51 @@ function App() {
         ['Child support', -childSupportAnnual, childSupportAnnual],
         ['Spousal support (pre-tax)', -spousalSupportAnnual, spousalSupportAnnual],
         ['Spousal support (tax deduction)', payorTaxDeductionBenefit, -recipientTaxSupportCost],
-        ['Income tax', -payorTaxBeforeSupportDeduction, -recipientTaxBeforeSupportInclusion],
-        ...((payorGovernmentBenefits > 0 || recipientGovernmentBenefits > 0)
-          ? [['Government benefits', payorGovernmentBenefits, recipientGovernmentBenefits]]
+        [
+          'Canada child benefit',
+          payorBenefitBreakdown.canadaChildBenefitAnnual,
+          recipientBenefitBreakdown.canadaChildBenefitAnnual,
+        ],
+        [
+          'GST/HST credit',
+          payorBenefitBreakdown.gstHstCreditAnnual,
+          recipientBenefitBreakdown.gstHstCreditAnnual,
+        ],
+        [
+          'B.C. family benefit',
+          payorBenefitBreakdown.bcFamilyBenefitAnnual,
+          recipientBenefitBreakdown.bcFamilyBenefitAnnual,
+        ],
+        ...((payorBenefitBreakdown.bcClimateActionCreditAnnual > 0 ||
+        recipientBenefitBreakdown.bcClimateActionCreditAnnual > 0)
+          ? [
+              [
+                'B.C. climate action credit',
+                payorBenefitBreakdown.bcClimateActionCreditAnnual,
+                recipientBenefitBreakdown.bcClimateActionCreditAnnual,
+              ],
+            ]
           : []),
+        ['Income tax', -payorTaxBeforeSupportDeduction, -recipientTaxBeforeSupportInclusion],
         ['Estimated net income', payorNetIncome, recipientNetIncome],
       ]
     : []
   const netIncomeDisplayRows = netIncomeRawRows.map(([label, payorValue, recipientValue]) => {
     const scale = netIncomeDivisor
-    const formatter =
-      label === 'Estimated net income' || label === 'Gross income'
-        ? formatCurrency
-        : formatSignedCurrency
+    const signed = label !== 'Estimated net income' && label !== 'Gross income'
 
-    return [label, formatter(payorValue / scale), formatter(recipientValue / scale)]
+    return [
+      label,
+      {
+        key: `${label}-payor`,
+        content: <CurrencyCell value={payorValue / scale} signed={signed} />,
+      },
+      {
+        key: `${label}-recipient`,
+        content: <CurrencyCell value={recipientValue / scale} signed={signed} />,
+      },
+    ]
   })
-  const benefitRows = spousalResult
-    ? [
-        [
-          'Canada child benefit',
-          formatCurrency(payorBenefitBreakdown.canadaChildBenefitAnnual),
-          formatCurrency(recipientBenefitBreakdown.canadaChildBenefitAnnual),
-        ],
-        [
-          'GST/HST credit',
-          formatCurrency(payorBenefitBreakdown.gstHstCreditAnnual),
-          formatCurrency(recipientBenefitBreakdown.gstHstCreditAnnual),
-        ],
-        [
-          'B.C. family benefit',
-          formatCurrency(payorBenefitBreakdown.bcFamilyBenefitAnnual),
-          formatCurrency(recipientBenefitBreakdown.bcFamilyBenefitAnnual),
-        ],
-        ...(payorBenefitBreakdown.bcClimateActionCreditAnnual > 0 ||
-        recipientBenefitBreakdown.bcClimateActionCreditAnnual > 0
-          ? [
-              [
-                'B.C. climate action credit',
-                formatCurrency(payorBenefitBreakdown.bcClimateActionCreditAnnual),
-                formatCurrency(recipientBenefitBreakdown.bcClimateActionCreditAnnual),
-              ],
-            ]
-          : []),
-        [
-          'Total annual benefits',
-          formatCurrency(payorGovernmentBenefits),
-          formatCurrency(recipientGovernmentBenefits),
-        ],
-      ]
-    : []
-
   return (
     <div className="app-shell">
       <header className="toolbar">
@@ -660,6 +678,7 @@ function App() {
                 caption="Net income calculation"
                 columns={['Component', `Payor ${netIncomeColumnLabel}`, `Recipient ${netIncomeColumnLabel}`]}
                 rows={netIncomeDisplayRows}
+                numericColumnIndexes={[1, 2]}
               />
             ) : (
               <p className="empty-state">Results will appear here after the first calculation.</p>
@@ -699,6 +718,7 @@ function App() {
                   caption="Child support amounts"
                   columns={['Party', 'Monthly', 'Annual']}
                   rows={childRows}
+                  numericColumnIndexes={[1, 2]}
                 />
               </>
             ) : (
@@ -709,15 +729,20 @@ function App() {
           <section className="panel-section">
             <div className="section-header">
               <div>
-                <h2>Spousal support</h2>
-                <p>Estimated annual payment to move the recipient into the selected NDI range.</p>
+                <h2>Spousal support calculations</h2>
+                <p>Iteration details used to place the recipient inside the selected NDI range.</p>
               </div>
-              {spousalResult ? (
-                <strong>{formatCurrency(spousalResult.estimatedSpousalSupportMonthly)}</strong>
-              ) : null}
+              <button
+                type="button"
+                className="drawer-toggle"
+                aria-expanded={spousalDetailsOpen}
+                onClick={() => setSpousalDetailsOpen((current) => !current)}
+              >
+                {spousalDetailsOpen ? 'Hide details' : 'Show details'}
+              </button>
             </div>
 
-            {spousalResult ? (
+            {spousalResult && spousalDetailsOpen ? (
               <>
                 <DetailList
                   emphasis
@@ -741,11 +766,6 @@ function App() {
                   ]}
                 />
                 <ResultTable
-                  caption="Government benefits"
-                  columns={['Program', 'Payor', 'Recipient']}
-                  rows={benefitRows}
-                />
-                <ResultTable
                   caption="Net disposable income"
                   columns={['Party', 'NDI']}
                   rows={[
@@ -754,13 +774,17 @@ function App() {
                     ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
                     ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
                   ]}
+                  numericColumnIndexes={[1]}
                 />
                 <ResultTable
                   caption="Recent iterations"
                   columns={['Iteration', 'Spousal support', 'Recipient NDI share']}
                   rows={spousalHistoryRows}
+                  numericColumnIndexes={[1]}
                 />
               </>
+            ) : spousalResult ? (
+              <p className="empty-state">Spousal support calculations are hidden.</p>
             ) : (
               <p className="empty-state">Results will appear here after the first calculation.</p>
             )}

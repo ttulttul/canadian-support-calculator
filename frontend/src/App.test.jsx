@@ -105,22 +105,45 @@ describe('App', () => {
       await screen.findByRole('table', { name: 'Net income calculation' }),
     ).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
-    expect(await screen.findByRole('table', { name: 'Government benefits' })).toBeInTheDocument()
-    expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
+    expect(await screen.findByText('Canada child benefit')).toBeInTheDocument()
+    expect(await screen.findByText('GST/HST credit')).toBeInTheDocument()
+    expect(await screen.findByText('B.C. family benefit')).toBeInTheDocument()
     expect(await screen.findByText('-$33,396')).toBeInTheDocument()
     expect(await screen.findByText('+$10,707')).toBeInTheDocument()
     expect(await screen.findByText('-$86,685')).toBeInTheDocument()
     expect(await screen.findByText('-$4,638')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
+    expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toHaveClass(
+      'data-table__numeric',
+    )
+    expect(screen.getByRole('columnheader', { name: 'Recipient Annual amount' })).toHaveClass(
+      'data-table__numeric',
+    )
+    expect(screen.getByText('+$10,707')).toHaveClass('signed-value--positive')
+    expect(screen.getByText('-$86,685')).toHaveClass('signed-value--negative')
     expect(screen.getByRole('button', { name: 'Annual' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show details' })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    )
+    expect(screen.getByText('Spousal support calculations are hidden.')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }))
 
     expect(screen.getByRole('button', { name: 'Monthly' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('columnheader', { name: 'Payor Monthly amount' })).toBeInTheDocument()
     expect(screen.getByText('+$892')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show details' }))
+
+    expect(screen.getByRole('button', { name: 'Hide details' })).toHaveAttribute(
+      'aria-expanded',
+      'true',
+    )
+    expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
+    expect(await screen.findByText('Spousal support calculations')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
 

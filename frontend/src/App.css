@@ -101,6 +101,15 @@
   color: #fff;
 }
 
+.drawer-toggle {
+  padding: 8px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: #fffdf9;
+  color: var(--text-default);
+  cursor: pointer;
+}
+
 .scenario-form {
   margin-top: 16px;
 }
@@ -250,6 +259,18 @@
   color: var(--text-muted);
   font-size: 0.88rem;
   font-weight: 600;
+}
+
+.data-table__numeric {
+  text-align: right;
+}
+
+.signed-value--positive {
+  color: #2f6f3e;
+}
+
+.signed-value--negative {
+  color: #6a1f16;
 }
 
 .empty-state,
