@@ -1073,6 +1073,7 @@ function App() {
               inputMode="numeric"
               aria-label="Edit payor gross income"
               value={editingGrossIncome.value}
+              size={Math.max(editingGrossIncome.value.length, 1)}
               autoFocus
               onChange={(event) =>
                 setEditingGrossIncome((current) =>
@@ -1113,6 +1114,7 @@ function App() {
               inputMode="numeric"
               aria-label="Edit recipient gross income"
               value={editingGrossIncome.value}
+              size={Math.max(editingGrossIncome.value.length, 1)}
               autoFocus
               onChange={(event) =>
                 setEditingGrossIncome((current) =>
