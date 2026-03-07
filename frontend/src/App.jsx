@@ -1312,6 +1312,16 @@ function App() {
                             withdrawals may be excluded case by case.
                           </li>
                         </ul>
+                        <p>
+                          <strong>Note:</strong> The payor&apos;s income for the purpose of spousal support
+                          calculations may be different from that used for the calculation of child support.
+                          Generally, the income at the time of separation is used and, to the extent that income
+                          has risen since that time, increases in income resulting from promotions, salary
+                          increases, and other new sources of income that the person was not reasonably expected
+                          to receive in the years following separation are excluded. In practical terms, this can
+                          mean that we fix income at the gross level at the time of separation and then inflate
+                          it by the rate of inflation since that time.
+                        </p>
                       </>
                     </InfoTooltip>
                   </span>
@@ -1352,6 +1362,16 @@ function App() {
                             withdrawals may be excluded case by case.
                           </li>
                         </ul>
+                        <p>
+                          <strong>Note:</strong> The recipient&apos;s income for the purpose of spousal support
+                          calculations may be different from that used for the calculation of child support.
+                          Generally, the income at the time of separation is used and, to the extent that income
+                          has risen since that time, increases in income resulting from promotions, salary
+                          increases, and other new sources of income that the person was not reasonably expected
+                          to receive in the years following separation are excluded. In practical terms, this can
+                          mean that we fix income at the gross level at the time of separation and then inflate
+                          it by the rate of inflation since that time.
+                        </p>
                       </>
                     </InfoTooltip>
                   </span>

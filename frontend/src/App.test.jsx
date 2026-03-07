@@ -126,6 +126,9 @@ describe('App', () => {
     expect(await screen.findByLabelText('Target maximum percentage information')).toBeInTheDocument()
     expect(await screen.findAllByText('When the Gross Income Amount Needs Adjustment')).toHaveLength(2)
     expect(
+      await screen.findAllByText(/income for the purpose of spousal support calculations may be different/i),
+    ).toHaveLength(2)
+    expect(
       await screen.findByRole('table', { name: 'Net income calculation' }),
     ).toBeInTheDocument()
     expect(await screen.findByText('Canada child benefit')).toBeInTheDocument()
