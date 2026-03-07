@@ -53,6 +53,18 @@ def _optional_tax_year(payload: dict) -> int:
     return tax_year
 
 
+def _optional_children_under_six(payload: dict) -> int:
+    value = payload.get("childrenUnderSix", 0)
+    try:
+        children_under_six = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("'childrenUnderSix' must be an integer.") from error
+
+    if children_under_six < 0:
+        raise ValueError("'childrenUnderSix' must be zero or greater.")
+    return children_under_six
+
+
 @api_blueprint.get("/health")
 def healthcheck():
     logger.debug("Healthcheck requested.")
@@ -72,7 +84,12 @@ def metadata():
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
                 "Child support uses the bundled 2017 BC simplified federal table. "
-                "Spousal support uses an indexed approximation of the 2023 combined BC tax model."
+                "Spousal support uses an indexed approximation of the 2023 combined BC tax model "
+                "plus annualized shared-custody family benefits and credits."
+            ),
+            "benefitAssumptions": (
+                "Benefit estimates assume both parents are single households in a shared-custody "
+                "offset scenario. Enter the count of children under age 6 for the Canada Child Benefit."
             ),
         }
     )
@@ -118,6 +135,7 @@ def spousal_support():
             payor_income=_require_number(payload, "payorIncome"),
             recipient_income=_require_number(payload, "recipientIncome"),
             num_children=_require_integer(payload, "children"),
+            children_under_six=_optional_children_under_six(payload),
             tax_year=_optional_tax_year(payload),
             target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
             table=current_app.config["CHILD_SUPPORT_TABLE"],

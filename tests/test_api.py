@@ -16,6 +16,7 @@ def test_metadata(client):
     assert payload["jurisdictions"] == [{"code": "BC", "name": "British Columbia"}]
     assert payload["supportedChildren"] == [1, 2, 3, 4, 5, 6, 7]
     assert payload["defaultTaxYear"] == 2023
+    assert "shared-custody" in payload["benefitAssumptions"]
 
 
 def test_child_support_route(client):
@@ -60,7 +61,8 @@ def test_spousal_support_route_accepts_tax_year(client):
         "/api/calculate/spousal-support",
         json={
             "jurisdiction": "BC",
-            "children": 7,
+            "children": 2,
+            "childrenUnderSix": 1,
             "taxYear": 2025,
             "payorIncome": 244658,
             "recipientIncome": 30600,
@@ -72,5 +74,8 @@ def test_spousal_support_route_accepts_tax_year(client):
 
     assert response.status_code == 200
     assert payload["taxYear"] == 2025
-    assert payload["childSupport"]["children"] == 7
+    assert payload["childrenUnderSix"] == 1
+    assert payload["childSupport"]["children"] == 2
     assert payload["payorTax"] > 0
+    assert payload["payorTaxBeforeSupportDeduction"] > payload["payorTax"]
+    assert payload["benefits"]["recipient"]["totalAnnual"] > 0

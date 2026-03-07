@@ -1,5 +1,6 @@
 import logging
 
+from .benefits import calculate_shared_custody_benefits
 from .calculations import calculate_child_support_breakdown
 from .tables import ChildSupportTable, load_default_child_support_table
 from .tax import calculate_bc_tax_approx
@@ -13,6 +14,7 @@ def calculate_spousal_support_estimate(
     recipient_income: float,
     num_children: int,
     tax_year: int,
+    children_under_six: int = 0,
     target_range: tuple[float, float] = (0.40, 0.46),
     max_iterations: int = 300,
     step: float = 500.0,
@@ -21,6 +23,9 @@ def calculate_spousal_support_estimate(
 ) -> dict:
     if payor_income < 0 or recipient_income < 0:
         raise ValueError("Income values must be zero or greater.")
+
+    if children_under_six < 0 or children_under_six > num_children:
+        raise ValueError("'childrenUnderSix' must be between zero and the total number of children.")
 
     target_min, target_max = target_range
     if not 0 < target_min < target_max < 1:
@@ -53,13 +58,29 @@ def calculate_spousal_support_estimate(
         current_recipient_income = recipient_income + spousal_support_annual
         payor_tax = calculate_bc_tax_approx(current_payor_income, tax_year=tax_year)
         recipient_tax = calculate_bc_tax_approx(current_recipient_income, tax_year=tax_year)
+        benefits = calculate_shared_custody_benefits(
+            payor_adjusted_family_net_income=current_payor_income,
+            recipient_adjusted_family_net_income=current_recipient_income,
+            num_children=num_children,
+            children_under_six=children_under_six,
+            tax_year=tax_year,
+        )
+        payor_benefits = benefits["payor"]["totalAnnual"]
+        recipient_benefits = benefits["recipient"]["totalAnnual"]
 
-        ndi_payor = payor_income - payor_tax - spousal_support_annual - net_child_support_annual
+        ndi_payor = (
+            payor_income
+            - payor_tax
+            - spousal_support_annual
+            - net_child_support_annual
+            + payor_benefits
+        )
         ndi_recipient = (
             recipient_income
             - recipient_tax
             + spousal_support_annual
             + net_child_support_annual
+            + recipient_benefits
         )
         total_ndi = ndi_payor + ndi_recipient
         recipient_share = 50.0 if total_ndi <= 0 else (ndi_recipient / total_ndi) * 100.0
@@ -68,6 +89,8 @@ def calculate_spousal_support_estimate(
             "iteration": iteration,
             "spousalSupportAnnual": round(spousal_support_annual, 2),
             "netChildSupportAnnual": round(net_child_support_annual, 2),
+            "payorBenefitsAnnual": round(payor_benefits, 2),
+            "recipientBenefitsAnnual": round(recipient_benefits, 2),
             "ndiPayor": round(ndi_payor, 2),
             "ndiRecipient": round(ndi_recipient, 2),
             "recipientSharePercent": round(recipient_share, 2),
@@ -101,11 +124,21 @@ def calculate_spousal_support_estimate(
     estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
     payor_taxable_income = max(payor_income - estimated_spousal_support_annual, 0.0)
     recipient_taxable_income = recipient_income + estimated_spousal_support_annual
+    payor_tax_before_support_deduction = calculate_bc_tax_approx(payor_income, tax_year=tax_year)
     payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
     recipient_tax = calculate_bc_tax_approx(recipient_taxable_income, tax_year=tax_year)
+    benefits = calculate_shared_custody_benefits(
+        payor_adjusted_family_net_income=payor_taxable_income,
+        recipient_adjusted_family_net_income=recipient_taxable_income,
+        num_children=num_children,
+        children_under_six=children_under_six,
+        tax_year=tax_year,
+    )
+    payor_tax_deduction_benefit = max(payor_tax_before_support_deduction - payor_tax, 0.0)
     return {
         "jurisdiction": "BC",
         "children": num_children,
+        "childrenUnderSix": children_under_six,
         "taxYear": tax_year,
         "payorIncome": payor_income,
         "recipientIncome": recipient_income,
@@ -121,8 +154,11 @@ def calculate_spousal_support_estimate(
         "childSupport": child_support,
         "payorTaxableIncome": round(payor_taxable_income, 2),
         "recipientTaxableIncome": round(recipient_taxable_income, 2),
+        "payorTaxBeforeSupportDeduction": round(payor_tax_before_support_deduction, 2),
         "payorTax": round(payor_tax, 2),
+        "payorTaxDeductionBenefit": round(payor_tax_deduction_benefit, 2),
         "recipientTax": round(recipient_tax, 2),
+        "benefits": benefits,
         "ndiPayor": final_snapshot["ndiPayor"],
         "ndiRecipient": final_snapshot["ndiRecipient"],
         "recipientSharePercent": final_snapshot["recipientSharePercent"],

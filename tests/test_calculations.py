@@ -1,5 +1,6 @@
 from pytest import approx
 
+from support_calculator.benefits import calculate_shared_custody_benefits
 from support_calculator.calculations import calculate_child_support_breakdown
 from support_calculator.spousal_support import calculate_spousal_support_estimate
 from support_calculator.tables import load_default_child_support_table
@@ -32,6 +33,7 @@ def test_spousal_support_estimate_converges_inside_target_band():
         payor_income=244658,
         recipient_income=30600,
         num_children=2,
+        children_under_six=0,
         tax_year=2025,
     )
 
@@ -40,12 +42,28 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["iterations"] > 1
     assert result["iterations"] < 300
     assert result["taxYear"] == 2025
-    assert result["payorTax"] > 0
+    assert result["payorTaxBeforeSupportDeduction"] > result["payorTax"]
+    assert result["payorTaxDeductionBenefit"] > 0
+    assert result["benefits"]["recipient"]["totalAnnual"] > 0
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
         rel=1e-4,
     )
     assert result["history"][-1]["recipientSharePercent"] == result["recipientSharePercent"]
+
+
+def test_shared_custody_benefits_include_low_income_credits():
+    result = calculate_shared_custody_benefits(
+        payor_adjusted_family_net_income=40_000,
+        recipient_adjusted_family_net_income=25_000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2023,
+    )
+
+    assert result["payor"]["totalAnnual"] == approx(9_851.92, rel=1e-4)
+    assert result["recipient"]["totalAnnual"] == approx(10_170.0, rel=1e-4)
+    assert result["recipient"]["canadaChildBenefitAnnual"] > result["payor"]["canadaChildBenefitAnnual"]
 
 
 def test_bc_tax_approx_is_progressive():

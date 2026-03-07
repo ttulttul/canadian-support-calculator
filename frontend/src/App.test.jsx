@@ -19,7 +19,10 @@ describe('App', () => {
           supportedChildren: [1, 2, 3, 4, 5, 6, 7],
           supportedChildrenNote: 'Six and seven children use the federal six-or-more table.',
           defaultTaxYear: 2023,
-          disclaimer: 'Child support uses the bundled 2017 BC simplified federal table.',
+          disclaimer:
+            'Child support uses the bundled 2017 BC simplified federal table. Spousal support uses annualized shared-custody family benefits and credits.',
+          benefitAssumptions:
+            'Benefit estimates assume both parents are single households in a shared-custody offset scenario.',
         })
       }
 
@@ -43,13 +46,32 @@ describe('App', () => {
           estimatedSpousalSupportMonthly: 1848.47,
           estimatedSpousalSupportAnnual: 22181.64,
           taxYear: payload.taxYear,
+          childrenUnderSix: payload.childrenUnderSix,
           payorIncome: payload.payorIncome,
+          payorTaxBeforeSupportDeduction: 86141.98,
+          payorTaxDeductionBenefit: 10163.38,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
           ndiRecipient: 75400.99,
           childSupport: {
             netAnnual: 33395.52,
+          },
+          benefits: {
+            payor: {
+              canadaChildBenefitAnnual: 0,
+              gstHstCreditAnnual: 0,
+              bcFamilyBenefitAnnual: 0,
+              bcClimateActionCreditAnnual: 0,
+              totalAnnual: 0,
+            },
+            recipient: {
+              canadaChildBenefitAnnual: 3920.0,
+              gstHstCreditAnnual: 520.0,
+              bcFamilyBenefitAnnual: 2400.0,
+              bcClimateActionCreditAnnual: 441.0,
+              totalAnnual: 7281.0,
+            },
           },
           history: [
             { iteration: 24, spousalSupportAnnual: 22000, recipientSharePercent: 39.7 },
@@ -68,7 +90,14 @@ describe('App', () => {
 
     expect(await screen.findByText('Canadian Support Calculator')).toBeInTheDocument()
     expect(
-      await screen.findByText('Child support uses the bundled 2017 BC simplified federal table.'),
+      await screen.findByText(
+        'Child support uses the bundled 2017 BC simplified federal table. Spousal support uses annualized shared-custody family benefits and credits.',
+      ),
+    ).toBeInTheDocument()
+    expect(
+      await screen.findByText(
+        'Benefit estimates assume both parents are single households in a shared-custody offset scenario.',
+      ),
     ).toBeInTheDocument()
     expect(
       await screen.findByText('Six and seven children use the federal six-or-more table.'),
@@ -77,11 +106,13 @@ describe('App', () => {
       await screen.findByRole('table', { name: 'Payor net income calculation' }),
     ).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Government benefits' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
-    expect(await screen.findByText('$75,979')).toBeInTheDocument()
-    expect(await screen.findByText('$222,476')).toBeInTheDocument()
+    expect(await screen.findByText('-$33,396')).toBeInTheDocument()
+    expect(await screen.findByText('+$10,163')).toBeInTheDocument()
+    expect(await screen.findByText('-$86,142')).toBeInTheDocument()
     expect(await screen.findByText(/month gross/)).toBeInTheDocument()
-    expect(await screen.findByText('Estimated tax')).toBeInTheDocument()
+    expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
 
@@ -95,9 +126,10 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Recalculate' })).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Children'), { target: { value: '7' } })
+    fireEvent.change(screen.getByLabelText('Children under 6'), { target: { value: '1' } })
 
     await waitFor(() => {
-      expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
+      expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
     })
 
     fireEvent.click(screen.getByLabelText('Recalculate automatically'))
@@ -106,7 +138,7 @@ describe('App', () => {
 
     fireEvent.change(screen.getByLabelText('Tax year'), { target: { value: '2025' } })
     fireEvent.change(screen.getByLabelText('Target minimum %'), { target: { value: '41' } })
-    expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
+    expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
     expect(screen.getByText('41% to 46% recipient NDI')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore example' }))
@@ -116,6 +148,7 @@ describe('App', () => {
     })
 
     expect(screen.getByLabelText('Tax year')).toHaveValue(2023)
+    expect(screen.getByLabelText('Children under 6')).toHaveValue(0)
     expect(screen.getByLabelText('Target minimum %')).toHaveValue(40)
     expect(screen.getByText('40% to 46% recipient NDI')).toBeInTheDocument()
   })

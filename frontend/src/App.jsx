@@ -4,6 +4,7 @@ import './App.css'
 const defaultScenario = {
   jurisdiction: 'BC',
   children: '2',
+  childrenUnderSix: '0',
   taxYear: '2023',
   payorIncome: '244658',
   recipientIncome: '30600',
@@ -21,6 +22,16 @@ function formatCurrency(value) {
 
 function formatPercent(value) {
   return `${Number(value ?? 0).toFixed(2)}%`
+}
+
+function formatSignedCurrency(value) {
+  if (value > 0) {
+    return `+${formatCurrency(value)}`
+  }
+  if (value < 0) {
+    return `-${formatCurrency(Math.abs(value))}`
+  }
+  return formatCurrency(0)
 }
 
 function asNumber(value, fallback = 0) {
@@ -131,6 +142,7 @@ function App() {
     const payload = {
       jurisdiction: activeScenario.jurisdiction,
       children: Number(activeScenario.children),
+      childrenUnderSix: Number(activeScenario.childrenUnderSix),
       taxYear: Number(activeScenario.taxYear),
       payorIncome: Number(activeScenario.payorIncome),
       recipientIncome: Number(activeScenario.recipientIncome),
@@ -169,6 +181,7 @@ function App() {
   const submitCurrentScenario = useEffectEvent((activeScenario) => {
     const requiredFields = [
       activeScenario.children,
+      activeScenario.childrenUnderSix,
       activeScenario.taxYear,
       activeScenario.payorIncome,
       activeScenario.recipientIncome,
@@ -192,7 +205,27 @@ function App() {
 
   function handleScenarioChange(event) {
     const { name, value } = event.target
-    setScenario((current) => ({ ...current, [name]: value }))
+    setScenario((current) => {
+      if (name === 'children') {
+        const nextChildren = value
+        const nextChildrenUnderSix = Math.min(
+          Number(current.childrenUnderSix || 0),
+          Number(nextChildren || 0),
+        )
+        return {
+          ...current,
+          children: nextChildren,
+          childrenUnderSix: String(nextChildrenUnderSix),
+        }
+      }
+
+      if (name === 'childrenUnderSix') {
+        const boundedValue = Math.min(Number(value || 0), Number(current.children || 0))
+        return { ...current, childrenUnderSix: String(Math.max(boundedValue, 0)) }
+      }
+
+      return { ...current, [name]: value }
+    })
   }
 
   function handleSubmit(event) {
@@ -230,28 +263,84 @@ function App() {
     ? asNumber(spousalResult.childSupport?.netAnnual)
     : 0
   const payorNetIncome = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
-  const payorTaxableIncome = spousalResult
-    ? asNumber(spousalResult.payorTaxableIncome, payorGrossIncome - spousalSupportAnnual)
+  const payorBenefitBreakdown = spousalResult?.benefits?.payor ?? {
+    canadaChildBenefitAnnual: 0,
+    gstHstCreditAnnual: 0,
+    bcFamilyBenefitAnnual: 0,
+    bcClimateActionCreditAnnual: 0,
+    totalAnnual: 0,
+  }
+  const recipientBenefitBreakdown = spousalResult?.benefits?.recipient ?? {
+    canadaChildBenefitAnnual: 0,
+    gstHstCreditAnnual: 0,
+    bcFamilyBenefitAnnual: 0,
+    bcClimateActionCreditAnnual: 0,
+    totalAnnual: 0,
+  }
+  const payorTaxBeforeSupportDeduction = spousalResult
+    ? asNumber(spousalResult.payorTaxBeforeSupportDeduction, asNumber(spousalResult.payorTax))
     : 0
-  const payorTax = spousalResult
-    ? asNumber(
-        spousalResult.payorTax,
-        payorGrossIncome - childSupportAnnual - spousalSupportAnnual - payorNetIncome,
-      )
+  const payorTaxDeductionBenefit = spousalResult
+    ? asNumber(spousalResult.payorTaxDeductionBenefit)
+    : 0
+  const payorGovernmentBenefits = spousalResult
+    ? asNumber(payorBenefitBreakdown.totalAnnual)
+    : 0
+  const recipientGovernmentBenefits = spousalResult
+    ? asNumber(recipientBenefitBreakdown.totalAnnual)
     : 0
   const payorGrossMonthly = payorGrossIncome / 12
-  const payorTaxMonthly = payorTax / 12
+  const payorTaxBeforeSupportDeductionMonthly = payorTaxBeforeSupportDeduction / 12
+  const payorTaxDeductionBenefitMonthly = payorTaxDeductionBenefit / 12
   const childSupportMonthly = childSupportAnnual / 12
   const spousalSupportMonthly = spousalSupportAnnual / 12
+  const payorGovernmentBenefitsMonthly = payorGovernmentBenefits / 12
   const payorNetMonthly = payorNetIncome / 12
   const payorNetIncomeRows = spousalResult
     ? [
         ['Gross income', formatCurrency(payorGrossIncome)],
-        ['Taxable income after spousal support', formatCurrency(payorTaxableIncome)],
-        ['Estimated tax', formatCurrency(payorTax)],
-        ['Child support annual', formatCurrency(childSupportAnnual)],
-        ['Spousal support annual', formatCurrency(spousalSupportAnnual)],
+        ['Child support', formatSignedCurrency(-childSupportAnnual)],
+        ['Spousal support (pre-tax)', formatSignedCurrency(-spousalSupportAnnual)],
+        ['Spousal support (tax deduction)', formatSignedCurrency(payorTaxDeductionBenefit)],
+        ['Income tax', formatSignedCurrency(-payorTaxBeforeSupportDeduction)],
+        ...(payorGovernmentBenefits > 0
+          ? [['Government benefits', formatSignedCurrency(payorGovernmentBenefits)]]
+          : []),
         ['Estimated net income', formatCurrency(payorNetIncome)],
+      ]
+    : []
+  const benefitRows = spousalResult
+    ? [
+        [
+          'Canada child benefit',
+          formatCurrency(payorBenefitBreakdown.canadaChildBenefitAnnual),
+          formatCurrency(recipientBenefitBreakdown.canadaChildBenefitAnnual),
+        ],
+        [
+          'GST/HST credit',
+          formatCurrency(payorBenefitBreakdown.gstHstCreditAnnual),
+          formatCurrency(recipientBenefitBreakdown.gstHstCreditAnnual),
+        ],
+        [
+          'B.C. family benefit',
+          formatCurrency(payorBenefitBreakdown.bcFamilyBenefitAnnual),
+          formatCurrency(recipientBenefitBreakdown.bcFamilyBenefitAnnual),
+        ],
+        ...(payorBenefitBreakdown.bcClimateActionCreditAnnual > 0 ||
+        recipientBenefitBreakdown.bcClimateActionCreditAnnual > 0
+          ? [
+              [
+                'B.C. climate action credit',
+                formatCurrency(payorBenefitBreakdown.bcClimateActionCreditAnnual),
+                formatCurrency(recipientBenefitBreakdown.bcClimateActionCreditAnnual),
+              ],
+            ]
+          : []),
+        [
+          'Total annual benefits',
+          formatCurrency(payorGovernmentBenefits),
+          formatCurrency(recipientGovernmentBenefits),
+        ],
       ]
     : []
 
@@ -299,6 +388,19 @@ function App() {
                       </option>
                     ))}
                   </select>
+                </label>
+
+                <label>
+                  Children under 6
+                  <input
+                    name="childrenUnderSix"
+                    type="number"
+                    min="0"
+                    max={scenario.children}
+                    step="1"
+                    value={scenario.childrenUnderSix}
+                    onChange={handleScenarioChange}
+                  />
                 </label>
 
                 <label>
@@ -397,12 +499,20 @@ function App() {
                   value: `${scenario.targetMinPercent}% to ${scenario.targetMaxPercent}% recipient NDI`,
                 },
                 {
+                  label: 'Children under 6',
+                  value: scenario.childrenUnderSix,
+                },
+                {
                   label: 'Tax year',
                   value: scenario.taxYear,
                 },
                 {
                   label: 'Data note',
                   value: metadata?.disclaimer ?? 'Loading',
+                },
+                {
+                  label: 'Benefit assumptions',
+                  value: metadata?.benefitAssumptions ?? 'Loading',
                 },
                 {
                   label: 'Children note',
@@ -429,17 +539,25 @@ function App() {
             {spousalResult ? (
               <>
                 <p className="summary-expression">
-                  {formatCurrency(payorGrossIncome)} gross - {formatCurrency(payorTax)} tax -{' '}
-                  {formatCurrency(childSupportAnnual)} child support -{' '}
-                  {formatCurrency(spousalSupportAnnual)} spousal support ={' '}
-                  {formatCurrency(payorNetIncome)} net
+                  {formatCurrency(payorGrossIncome)} gross - {formatCurrency(childSupportAnnual)} child
+                  support - {formatCurrency(spousalSupportAnnual)} spousal support +{' '}
+                  {formatCurrency(payorTaxDeductionBenefit)} tax deduction -{' '}
+                  {formatCurrency(payorTaxBeforeSupportDeduction)} income tax
+                  {payorGovernmentBenefits > 0
+                    ? ` + ${formatCurrency(payorGovernmentBenefits)} benefits`
+                    : ''}{' '}
+                  = {formatCurrency(payorNetIncome)} net
                 </p>
                 <p className="summary-expression summary-expression--secondary">
                   {formatCurrency(payorGrossMonthly)}/month gross -{' '}
-                  {formatCurrency(payorTaxMonthly)}/month tax -{' '}
                   {formatCurrency(childSupportMonthly)}/month child support -{' '}
-                  {formatCurrency(spousalSupportMonthly)}/month spousal support ={' '}
-                  {formatCurrency(payorNetMonthly)}/month net
+                  {formatCurrency(spousalSupportMonthly)}/month spousal support +{' '}
+                  {formatCurrency(payorTaxDeductionBenefitMonthly)}/month tax deduction -{' '}
+                  {formatCurrency(payorTaxBeforeSupportDeductionMonthly)}/month income tax
+                  {payorGovernmentBenefits > 0
+                    ? ` + ${formatCurrency(payorGovernmentBenefitsMonthly)}/month benefits`
+                    : ''}{' '}
+                  = {formatCurrency(payorNetMonthly)}/month net
                 </p>
                 <ResultTable
                   caption="Payor net income calculation"
@@ -527,12 +645,18 @@ function App() {
                   ]}
                 />
                 <ResultTable
+                  caption="Government benefits"
+                  columns={['Program', 'Payor', 'Recipient']}
+                  rows={benefitRows}
+                />
+                <ResultTable
                   caption="Net disposable income"
                   columns={['Party', 'NDI']}
                   rows={[
                     ['Payor', formatCurrency(spousalResult.ndiPayor)],
                     ['Recipient', formatCurrency(spousalResult.ndiRecipient)],
                     ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
+                    ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
                   ]}
                 />
                 <ResultTable
