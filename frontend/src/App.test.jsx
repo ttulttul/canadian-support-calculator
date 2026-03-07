@@ -111,6 +111,11 @@ describe('App', () => {
     expect(await screen.findByText('$99,571')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
+    expect(screen.getAllByText('Child support')[0].closest('td')).toHaveClass('data-table__emphasis')
+    expect(screen.getByText('Spousal support (pre-tax)').closest('td')).toHaveClass(
+      'data-table__emphasis',
+    )
+    expect(screen.getAllByText('$113,102')[0].closest('td')).toHaveClass('data-table__emphasis')
     expect(screen.queryByText('Flask API')).not.toBeInTheDocument()
     expect(screen.queryByText('React client')).not.toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toHaveClass(

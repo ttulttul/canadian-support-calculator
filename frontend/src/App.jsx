@@ -823,14 +823,26 @@ function App() {
     'Estimated net income',
     'Equivalent before-tax income',
   ])
+  const emphasizedNetIncomeLabels = new Set([
+    'Child support',
+    'Spousal support (pre-tax)',
+    'Estimated net income',
+  ])
   const netIncomeDisplayRows = netIncomeRawRows.map(([label, payorValue, recipientValue]) => {
     const scale = netIncomeDivisor
     const signed = !unsignedNetIncomeLabels.has(label)
     const isEquivalentIncomeRow = label === 'Equivalent before-tax income'
+    const isEmphasizedRow = emphasizedNetIncomeLabels.has(label)
+    const rowClassName = [
+      isEquivalentIncomeRow ? 'data-table__informational' : '',
+      isEmphasizedRow ? 'data-table__emphasis' : '',
+    ]
+      .filter(Boolean)
+      .join(' ')
     const labelCell = isEquivalentIncomeRow
       ? {
           key: `${label}-label`,
-          className: 'data-table__informational',
+          className: rowClassName,
           content: (
             <span className="info-label">
               <em>{label}</em>
@@ -848,19 +860,24 @@ function App() {
             </span>
           ),
         }
-      : label
-    const valueClassName = isEquivalentIncomeRow ? 'data-table__informational' : ''
+      : rowClassName
+        ? {
+            key: `${label}-label`,
+            className: rowClassName,
+            content: label,
+          }
+        : label
 
     return [
       labelCell,
       {
         key: `${label}-payor`,
-        className: valueClassName,
+        className: rowClassName,
         content: <CurrencyCell value={payorValue / scale} signed={signed} />,
       },
       {
         key: `${label}-recipient`,
-        className: valueClassName,
+        className: rowClassName,
         content: <CurrencyCell value={recipientValue / scale} signed={signed} />,
       },
     ]
