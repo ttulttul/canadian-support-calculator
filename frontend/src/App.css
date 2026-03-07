@@ -363,6 +363,11 @@
   align-items: center;
   justify-content: center;
   position: relative;
+  min-width: 24px;
+  min-height: 24px;
+  margin: -4px;
+  padding: 4px;
+  border-radius: 999px;
   color: var(--text-muted);
   cursor: help;
   font-style: normal;

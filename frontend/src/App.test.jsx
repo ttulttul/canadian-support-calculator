@@ -104,6 +104,7 @@ describe('App', () => {
     const equivalentIncomeInfoIcon = screen.getByLabelText('Equivalent before-tax income explanation')
     expect(equivalentIncomeInfoIcon).not.toHaveAttribute('title')
     expect(equivalentIncomeInfoIcon).toHaveAttribute('tabindex', '0')
+    expect(equivalentIncomeInfoIcon).toHaveClass('info-icon')
     expect(equivalentIncomeInfoIcon.querySelector('svg')).not.toBeNull()
     expect(
       screen.getByText(
