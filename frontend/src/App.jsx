@@ -38,6 +38,133 @@ const knownTaxYearIndexFactors = {
   2024: 55867 / 53359,
   2025: 57375 / 53359,
 }
+const ccbChildCountCap = 4
+const ccbConfigs = {
+  2021: {
+    under6: 6997,
+    age6To17: 5903,
+    threshold1: 32797,
+    threshold2: 71060,
+    step1Rates: { 1: 0.07, 2: 0.135, 3: 0.19, 4: 0.23 },
+    step2Bases: { 1: 2678, 2: 5166, 3: 7270, 4: 8801 },
+    step2Rates: { 1: 0.032, 2: 0.057, 3: 0.08, 4: 0.095 },
+  },
+  2022: {
+    under6: 7437,
+    age6To17: 6275,
+    threshold1: 34863,
+    threshold2: 75537,
+    step1Rates: { 1: 0.07, 2: 0.135, 3: 0.19, 4: 0.23 },
+    step2Bases: { 1: 2847, 2: 5490, 3: 7726, 4: 9352 },
+    step2Rates: { 1: 0.032, 2: 0.057, 3: 0.08, 4: 0.095 },
+  },
+  2023: {
+    under6: 7787,
+    age6To17: 6570,
+    threshold1: 36502,
+    threshold2: 79087,
+    step1Rates: { 1: 0.07, 2: 0.135, 3: 0.19, 4: 0.23 },
+    step2Bases: { 1: 2981, 2: 5749, 3: 8091, 4: 9795 },
+    step2Rates: { 1: 0.032, 2: 0.057, 3: 0.08, 4: 0.095 },
+  },
+  2024: {
+    under6: 7997,
+    age6To17: 6748,
+    threshold1: 37487,
+    threshold2: 81222,
+    step1Rates: { 1: 0.07, 2: 0.135, 3: 0.19, 4: 0.23 },
+    step2Bases: { 1: 3061, 2: 5904, 3: 8310, 4: 10059 },
+    step2Rates: { 1: 0.032, 2: 0.057, 3: 0.08, 4: 0.095 },
+  },
+}
+const gstConfigs = {
+  2021: {
+    baseCredit: 306,
+    childCredit: 161,
+    singleSupplement: 161,
+    singleSupplementThreshold: 9919,
+    phaseoutThreshold: 39826,
+  },
+  2022: {
+    baseCredit: 325,
+    childCredit: 171,
+    singleSupplement: 171,
+    singleSupplementThreshold: 10544,
+    phaseoutThreshold: 42335,
+  },
+  2023: {
+    baseCredit: 340,
+    childCredit: 179,
+    singleSupplement: 179,
+    singleSupplementThreshold: 11039,
+    phaseoutThreshold: 44324,
+  },
+  2024: {
+    baseCredit: 349,
+    childCredit: 184,
+    singleSupplement: 184,
+    singleSupplementThreshold: 11337,
+    phaseoutThreshold: 45521,
+  },
+}
+const bcFamilyBenefitConfigs = {
+  2022: {
+    maxFirstChild: 1750,
+    maxSecondChild: 1100,
+    maxAdditionalChild: 900,
+    minFirstChild: 775,
+    minSecondChild: 750,
+    minAdditionalChild: 725,
+    maxThreshold: 27354,
+    phaseoutThreshold: 87533,
+    singleParentSupplement: 500,
+  },
+  2023: {
+    maxFirstChild: 2188,
+    maxSecondChild: 1375,
+    maxAdditionalChild: 1125,
+    minFirstChild: 969,
+    minSecondChild: 937,
+    minAdditionalChild: 906,
+    maxThreshold: 35902,
+    phaseoutThreshold: 114887,
+    singleParentSupplement: 500,
+  },
+  2024: {
+    maxFirstChild: 1750,
+    maxSecondChild: 1100,
+    maxAdditionalChild: 900,
+    minFirstChild: 775,
+    minSecondChild: 750,
+    minAdditionalChild: 725,
+    maxThreshold: 29526,
+    phaseoutThreshold: 94483,
+    singleParentSupplement: 500,
+  },
+}
+const bcClimateConfigs = {
+  2021: {
+    adult: 447,
+    secondAdultOrFirstChild: 223.5,
+    additionalChild: 111.5,
+    singleThreshold: 39115,
+    familyThreshold: 50170,
+  },
+  2022: {
+    adult: 504,
+    secondAdultOrFirstChild: 252,
+    additionalChild: 126,
+    singleThreshold: 41071,
+    familyThreshold: 57288,
+  },
+  2023: {
+    adult: 504,
+    secondAdultOrFirstChild: 252,
+    additionalChild: 126,
+    singleThreshold: 41071,
+    familyThreshold: 57288,
+  },
+}
 
 function formatCurrency(value) {
   return new Intl.NumberFormat('en-CA', {
@@ -100,6 +227,199 @@ function calculateApproxBcTax(income, taxYear) {
   }
 
   return Number(tax.toFixed(2))
+}
+
+function scaleConfig(configs, taxYear) {
+  if (taxYear in configs) {
+    return configs[taxYear]
+  }
+
+  const years = Object.keys(configs).map(Number)
+  const sourceYear = taxYear < Math.min(...years) ? Math.min(...years) : Math.max(...years)
+  const scale = resolveTaxYearIndexFactor(taxYear) / resolveTaxYearIndexFactor(sourceYear)
+  const sourceConfig = configs[sourceYear]
+
+  return Object.fromEntries(
+    Object.entries(sourceConfig).map(([key, value]) => {
+      if (typeof value === 'object' && value !== null) {
+        if (key.endsWith('Rates')) {
+          return [key, value]
+        }
+
+        return [
+          key,
+          Object.fromEntries(
+            Object.entries(value).map(([nestedKey, nestedValue]) => [
+              nestedKey,
+              Number((nestedValue * scale).toFixed(2)),
+            ]),
+          ),
+        ]
+      }
+
+      return [key, Number((value * scale).toFixed(2))]
+    }),
+  )
+}
+
+function calculateCanadaChildBenefit(income, numChildren, childrenUnderSix, taxYear) {
+  if (numChildren <= 0) {
+    return 0
+  }
+
+  const config = scaleConfig(ccbConfigs, taxYear)
+  const cappedCount = Math.min(numChildren, ccbChildCountCap)
+  const childrenOverSix = numChildren - childrenUnderSix
+  const maximumBenefit = config.under6 * childrenUnderSix + config.age6To17 * childrenOverSix
+  let reduction = 0
+
+  if (income > config.threshold2) {
+    reduction =
+      config.step2Bases[cappedCount] + (income - config.threshold2) * config.step2Rates[cappedCount]
+  } else if (income > config.threshold1) {
+    reduction = (income - config.threshold1) * config.step1Rates[cappedCount]
+  }
+
+  return Number(Math.max(maximumBenefit - reduction, 0).toFixed(2))
+}
+
+function calculateGstHstCredit(income, registeredChildren, taxYear) {
+  const config = scaleConfig(gstConfigs, taxYear)
+  const subtotal =
+    registeredChildren > 0
+      ? config.baseCredit +
+        config.baseCredit +
+        config.childCredit * Math.max(registeredChildren - 1, 0) +
+        config.singleSupplement
+      : config.baseCredit +
+        Math.min(
+          config.singleSupplement,
+          Math.max(income - config.singleSupplementThreshold, 0) * 0.02,
+        )
+
+  return Number(
+    Math.max(subtotal - Math.max(income - config.phaseoutThreshold, 0) * 0.05, 0).toFixed(2),
+  )
+}
+
+function calculateBcFamilyBenefitChildAmount(
+  count,
+  firstChildAmount,
+  secondChildAmount,
+  additionalChildAmount,
+) {
+  if (count <= 0) {
+    return 0
+  }
+  if (count === 1) {
+    return firstChildAmount
+  }
+  if (count === 2) {
+    return firstChildAmount + secondChildAmount
+  }
+
+  return firstChildAmount + secondChildAmount + additionalChildAmount * (count - 2)
+}
+
+function calculateBcFamilyBenefit(income, registeredChildren, taxYear) {
+  if (registeredChildren <= 0) {
+    return 0
+  }
+
+  const config = scaleConfig(bcFamilyBenefitConfigs, taxYear)
+  const maximumChildAmount = calculateBcFamilyBenefitChildAmount(
+    registeredChildren,
+    config.maxFirstChild,
+    config.maxSecondChild,
+    config.maxAdditionalChild,
+  )
+  const guaranteedMinimum = calculateBcFamilyBenefitChildAmount(
+    registeredChildren,
+    config.minFirstChild,
+    config.minSecondChild,
+    config.minAdditionalChild,
+  )
+  const maximumTotal = maximumChildAmount + config.singleParentSupplement
+
+  if (income <= config.maxThreshold) {
+    return Number(maximumTotal.toFixed(2))
+  }
+  if (income <= config.phaseoutThreshold) {
+    return Number(
+      Math.max(maximumTotal - (income - config.maxThreshold) * 0.04, guaranteedMinimum).toFixed(2),
+    )
+  }
+
+  return Number(
+    Math.max(guaranteedMinimum - (income - config.phaseoutThreshold) * 0.04, 0).toFixed(2),
+  )
+}
+
+function calculateBcClimateActionCredit(income, registeredChildren, taxYear) {
+  if (taxYear >= 2024) {
+    return 0
+  }
+
+  const config = scaleConfig(bcClimateConfigs, taxYear)
+  const threshold = registeredChildren > 0 ? config.familyThreshold : config.singleThreshold
+  const maximumCredit =
+    registeredChildren > 0
+      ? config.adult +
+        config.secondAdultOrFirstChild +
+        config.additionalChild * Math.max(registeredChildren - 1, 0)
+      : config.adult
+
+  return Number(Math.max(maximumCredit - Math.max(income - threshold, 0) * 0.02, 0).toFixed(2))
+}
+
+function calculateSharedCustodyBenefits(payorIncome, recipientIncome, numChildren, childrenUnderSix, taxYear) {
+  const multiplier = 0.5
+  const buildBreakdown = (income) => {
+    const canadaChildBenefitAnnual = calculateCanadaChildBenefit(
+      income,
+      numChildren,
+      childrenUnderSix,
+      taxYear,
+    )
+    const gstHstCreditAnnual = calculateGstHstCredit(income, numChildren, taxYear)
+    const bcFamilyBenefitAnnual = calculateBcFamilyBenefit(income, numChildren, taxYear)
+    const bcClimateActionCreditAnnual = calculateBcClimateActionCredit(income, numChildren, taxYear)
+
+    return {
+      canadaChildBenefitAnnual: Number((canadaChildBenefitAnnual * multiplier).toFixed(2)),
+      gstHstCreditAnnual: Number((gstHstCreditAnnual * multiplier).toFixed(2)),
+      bcFamilyBenefitAnnual: Number((bcFamilyBenefitAnnual * multiplier).toFixed(2)),
+      bcClimateActionCreditAnnual: Number((bcClimateActionCreditAnnual * multiplier).toFixed(2)),
+    }
+  }
+
+  const payor = buildBreakdown(payorIncome)
+  const recipient = buildBreakdown(recipientIncome)
+
+  return {
+    payor: {
+      ...payor,
+      totalAnnual: Number(
+        (
+          payor.canadaChildBenefitAnnual +
+          payor.gstHstCreditAnnual +
+          payor.bcFamilyBenefitAnnual +
+          payor.bcClimateActionCreditAnnual
+        ).toFixed(2),
+      ),
+    },
+    recipient: {
+      ...recipient,
+      totalAnnual: Number(
+        (
+          recipient.canadaChildBenefitAnnual +
+          recipient.gstHstCreditAnnual +
+          recipient.bcFamilyBenefitAnnual +
+          recipient.bcClimateActionCreditAnnual
+        ).toFixed(2),
+      ),
+    },
+  }
 }
 
 async function postJson(url, payload) {
@@ -356,23 +676,34 @@ function App() {
     ? asNumber(spousalResult.childSupport?.netAnnual)
     : 0
   const payorNetIncome = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
-  const payorBenefitBreakdown = spousalResult?.benefits?.payor ?? {
-    canadaChildBenefitAnnual: 0,
-    gstHstCreditAnnual: 0,
-    bcFamilyBenefitAnnual: 0,
-    bcClimateActionCreditAnnual: 0,
-    totalAnnual: 0,
-  }
-  const recipientBenefitBreakdown = spousalResult?.benefits?.recipient ?? {
-    canadaChildBenefitAnnual: 0,
-    gstHstCreditAnnual: 0,
-    bcFamilyBenefitAnnual: 0,
-    bcClimateActionCreditAnnual: 0,
-    totalAnnual: 0,
-  }
   const activeTaxYear = spousalResult ? asNumber(spousalResult.taxYear, baseTaxYear) : baseTaxYear
   const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
   const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
+  const benefitFallback = spousalResult
+    ? calculateSharedCustodyBenefits(
+        Math.max(payorGrossIncome - spousalSupportAnnual, 0),
+        Math.max(recipientGrossIncome + spousalSupportAnnual, 0),
+        asNumber(spousalResult.children, asNumber(scenario.children)),
+        asNumber(spousalResult.childrenUnderSix, asNumber(scenario.childrenUnderSix)),
+        activeTaxYear,
+      )
+    : null
+  const payorBenefitBreakdown = spousalResult?.benefits?.payor ??
+    benefitFallback?.payor ?? {
+      canadaChildBenefitAnnual: 0,
+      gstHstCreditAnnual: 0,
+      bcFamilyBenefitAnnual: 0,
+      bcClimateActionCreditAnnual: 0,
+      totalAnnual: 0,
+    }
+  const recipientBenefitBreakdown = spousalResult?.benefits?.recipient ??
+    benefitFallback?.recipient ?? {
+      canadaChildBenefitAnnual: 0,
+      gstHstCreditAnnual: 0,
+      bcFamilyBenefitAnnual: 0,
+      bcClimateActionCreditAnnual: 0,
+      totalAnnual: 0,
+    }
   const payorTaxAfterSupport = spousalResult
     ? asNumber(
         spousalResult.payorTax,

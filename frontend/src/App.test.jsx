@@ -56,22 +56,6 @@ describe('App', () => {
           childSupport: {
             netAnnual: 33395.52,
           },
-          benefits: {
-            payor: {
-              canadaChildBenefitAnnual: 0,
-              gstHstCreditAnnual: 0,
-              bcFamilyBenefitAnnual: 0,
-              bcClimateActionCreditAnnual: 0,
-              totalAnnual: 0,
-            },
-            recipient: {
-              canadaChildBenefitAnnual: 3920.0,
-              gstHstCreditAnnual: 520.0,
-              bcFamilyBenefitAnnual: 2400.0,
-              bcClimateActionCreditAnnual: 441.0,
-              totalAnnual: 7281.0,
-            },
-          },
           history: [
             { iteration: 24, spousalSupportAnnual: 22000, recipientSharePercent: 39.7 },
             { iteration: 25, spousalSupportAnnual: 22125, recipientSharePercent: 39.9 },
@@ -111,6 +95,9 @@ describe('App', () => {
     expect(await screen.findByText('+$10,707')).toBeInTheDocument()
     expect(await screen.findByText('-$86,685')).toBeInTheDocument()
     expect(await screen.findByText('-$4,638')).toBeInTheDocument()
+    expect(await screen.findByText('+$5,471')).toBeInTheDocument()
+    expect(await screen.findByText('+$308')).toBeInTheDocument()
+    expect(await screen.findByText('+$1,694')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
     expect(screen.queryByText('Flask API')).not.toBeInTheDocument()
