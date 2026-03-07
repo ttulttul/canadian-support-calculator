@@ -325,6 +325,11 @@
   text-align: right;
 }
 
+.data-table__informational {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
 .currency-cell {
   display: block;
   width: 100%;
@@ -337,6 +342,24 @@
 
 .signed-value--negative {
   color: #6a1f16;
+}
+
+.data-table__informational .currency-cell {
+  color: inherit;
+}
+
+.info-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.info-icon {
+  color: var(--text-muted);
+  cursor: help;
+  font-style: normal;
+  font-size: 0.8rem;
+  line-height: 1;
 }
 
 .empty-state,

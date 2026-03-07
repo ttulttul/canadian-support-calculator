@@ -513,7 +513,7 @@ function ResultTable({ caption, columns, rows, numericColumnIndexes = [] }) {
         </thead>
         <tbody>
           {rows.map((row) => (
-            <tr key={row[0]}>
+            <tr key={typeof row[0] === 'object' && row[0] !== null ? row[0].key : row[0]}>
               {row.map((cell, index) => (
                 <td
                   key={typeof cell === 'object' && cell !== null ? cell.key : `${row[0]}-${index}`}
@@ -826,15 +826,37 @@ function App() {
   const netIncomeDisplayRows = netIncomeRawRows.map(([label, payorValue, recipientValue]) => {
     const scale = netIncomeDivisor
     const signed = !unsignedNetIncomeLabels.has(label)
+    const isEquivalentIncomeRow = label === 'Equivalent before-tax income'
+    const labelCell = isEquivalentIncomeRow
+      ? {
+          key: `${label}-label`,
+          className: 'data-table__informational',
+          content: (
+            <span className="info-label">
+              <em>{label}</em>
+              <span
+                className="info-icon"
+                title="The gross employment income that would leave the same after-tax income if there were no child support, spousal support, or government benefits."
+                aria-label="Equivalent before-tax income explanation"
+              >
+                (i)
+              </span>
+            </span>
+          ),
+        }
+      : label
+    const valueClassName = isEquivalentIncomeRow ? 'data-table__informational' : ''
 
     return [
-      label,
+      labelCell,
       {
         key: `${label}-payor`,
+        className: valueClassName,
         content: <CurrencyCell value={payorValue / scale} signed={signed} />,
       },
       {
         key: `${label}-recipient`,
+        className: valueClassName,
         content: <CurrencyCell value={recipientValue / scale} signed={signed} />,
       },
     ]
