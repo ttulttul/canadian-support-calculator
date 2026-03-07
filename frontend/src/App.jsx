@@ -734,6 +734,7 @@ function App() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [editingGrossIncome, setEditingGrossIncome] = useState(null)
   const requestSequence = useRef(0)
+  const maxSupportedChildren = Math.max(...(metadata?.supportedChildren ?? [7]))
 
   useEffect(() => {
     let active = true
@@ -849,8 +850,12 @@ function App() {
       }
 
       if (name === 'childrenUnderSix') {
-        const boundedValue = Math.min(Number(value || 0), Number(current.children || 0))
-        return { ...current, childrenUnderSix: String(Math.max(boundedValue, 0)) }
+        const boundedValue = Math.min(Math.max(Number(value || 0), 0), maxSupportedChildren)
+        return {
+          ...current,
+          children: String(Math.max(Number(current.children || 0), boundedValue)),
+          childrenUnderSix: String(boundedValue),
+        }
       }
 
       return { ...current, [name]: value }
@@ -1232,7 +1237,7 @@ function App() {
                     name="childrenUnderSix"
                     type="number"
                     min="0"
-                    max={scenario.children}
+                    max={maxSupportedChildren}
                     step="1"
                     value={scenario.childrenUnderSix}
                     onChange={handleScenarioChange}

@@ -213,6 +213,17 @@ describe('App', () => {
       expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
     })
 
+    expect(screen.getByLabelText('Children under 6')).toHaveAttribute('max', '7')
+
+    fireEvent.change(screen.getByLabelText('Children'), { target: { value: '2' } })
+    fireEvent.change(screen.getByLabelText('Children under 6'), { target: { value: '7' } })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Children')).toHaveValue('7')
+    })
+    expect(screen.getByLabelText('Children under 6')).toHaveValue(7)
+    const fetchCountAfterChildrenAdjustments = globalThis.fetch.mock.calls.length
+
     const autoRecalculate = screen.getByLabelText('Recalculate automatically')
     expect(autoRecalculate.parentElement).toHaveClass('form-toggle')
     expect(autoRecalculate.parentElement?.firstElementChild).toBe(autoRecalculate)
@@ -223,7 +234,7 @@ describe('App', () => {
 
     fireEvent.change(screen.getByLabelText('Tax year'), { target: { value: '2025' } })
     fireEvent.change(screen.getByLabelText('Target minimum %'), { target: { value: '41' } })
-    expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
+    expect(globalThis.fetch.mock.calls.length).toBe(fetchCountAfterChildrenAdjustments)
     expect(screen.getByText('41% to 46% recipient NDI')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore example' }))
