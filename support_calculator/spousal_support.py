@@ -12,6 +12,8 @@ def calculate_spousal_support_estimate(
     *,
     payor_income: float,
     recipient_income: float,
+    payor_spousal_income: float | None = None,
+    recipient_spousal_income: float | None = None,
     num_children: int,
     tax_year: int,
     children_under_six: int = 0,
@@ -32,6 +34,14 @@ def calculate_spousal_support_estimate(
         raise ValueError("Target range must be between 0 and 1.")
 
     active_table = table or load_default_child_support_table()
+    active_payor_spousal_income = (
+        payor_income if payor_spousal_income is None else payor_spousal_income
+    )
+    active_recipient_spousal_income = (
+        recipient_income
+        if recipient_spousal_income is None
+        else recipient_spousal_income
+    )
     child_support = calculate_child_support_breakdown(
         num_children=num_children,
         payor_income=payor_income,
@@ -44,9 +54,11 @@ def calculate_spousal_support_estimate(
     target_midpoint = (target_min_percent + target_max_percent) / 2.0
 
     logger.info(
-        "Starting spousal support estimate: payor=%s recipient=%s children=%s",
+        "Starting spousal support estimate: payor=%s recipient=%s spousal_payor=%s spousal_recipient=%s children=%s",
         payor_income,
         recipient_income,
+        active_payor_spousal_income,
+        active_recipient_spousal_income,
         num_children,
     )
 
@@ -54,8 +66,8 @@ def calculate_spousal_support_estimate(
     history: list[dict] = []
 
     for iteration in range(max_iterations):
-        current_payor_income = max(payor_income - spousal_support_annual, 0.0)
-        current_recipient_income = recipient_income + spousal_support_annual
+        current_payor_income = max(active_payor_spousal_income - spousal_support_annual, 0.0)
+        current_recipient_income = active_recipient_spousal_income + spousal_support_annual
         payor_tax = calculate_bc_tax_approx(current_payor_income, tax_year=tax_year)
         recipient_tax = calculate_bc_tax_approx(current_recipient_income, tax_year=tax_year)
         benefits = calculate_shared_custody_benefits(
@@ -69,14 +81,14 @@ def calculate_spousal_support_estimate(
         recipient_benefits = benefits["recipient"]["totalAnnual"]
 
         ndi_payor = (
-            payor_income
+            active_payor_spousal_income
             - payor_tax
             - spousal_support_annual
             - net_child_support_annual
             + payor_benefits
         )
         ndi_recipient = (
-            recipient_income
+            active_recipient_spousal_income
             - recipient_tax
             + spousal_support_annual
             + net_child_support_annual
@@ -122,11 +134,17 @@ def calculate_spousal_support_estimate(
 
     final_snapshot = history[-1]
     estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
-    payor_taxable_income = max(payor_income - estimated_spousal_support_annual, 0.0)
-    recipient_taxable_income = recipient_income + estimated_spousal_support_annual
-    payor_tax_before_support_deduction = calculate_bc_tax_approx(payor_income, tax_year=tax_year)
+    payor_taxable_income = max(
+        active_payor_spousal_income - estimated_spousal_support_annual,
+        0.0,
+    )
+    recipient_taxable_income = active_recipient_spousal_income + estimated_spousal_support_annual
+    payor_tax_before_support_deduction = calculate_bc_tax_approx(
+        active_payor_spousal_income,
+        tax_year=tax_year,
+    )
     recipient_tax_before_support_inclusion = calculate_bc_tax_approx(
-        recipient_income,
+        active_recipient_spousal_income,
         tax_year=tax_year,
     )
     payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
@@ -147,6 +165,8 @@ def calculate_spousal_support_estimate(
         "taxYear": tax_year,
         "payorIncome": payor_income,
         "recipientIncome": recipient_income,
+        "payorSpousalIncome": active_payor_spousal_income,
+        "recipientSpousalIncome": active_recipient_spousal_income,
         "targetRangePercent": {
             "min": round(target_min_percent, 2),
             "max": round(target_max_percent, 2),

@@ -8,6 +8,9 @@ const defaultScenario = {
   taxYear: '2023',
   payorIncome: '244658',
   recipientIncome: '30600',
+  useSeparateSpousalIncomes: false,
+  payorSpousalIncome: '',
+  recipientSpousalIncome: '',
   targetMinPercent: '40',
   targetMaxPercent: '46',
 }
@@ -799,6 +802,12 @@ function App() {
       postJson('/api/calculate/child-support', payload),
       postJson('/api/calculate/spousal-support', {
         ...payload,
+        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.payorSpousalIncome !== ''
+          ? { payorSpousalIncome: Number(activeScenario.payorSpousalIncome) }
+          : {}),
+        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.recipientSpousalIncome !== ''
+          ? { recipientSpousalIncome: Number(activeScenario.recipientSpousalIncome) }
+          : {}),
         targetMinPercent: Number(activeScenario.targetMinPercent),
         targetMaxPercent: Number(activeScenario.targetMaxPercent),
       }),
@@ -851,8 +860,12 @@ function App() {
   }, [autoRecalculate, metadata, scenario])
 
   function handleScenarioChange(event) {
-    const { name, value } = event.target
+    const { name, value, type, checked } = event.target
     setScenario((current) => {
+      if (name === 'useSeparateSpousalIncomes') {
+        return { ...current, useSeparateSpousalIncomes: checked }
+      }
+
       if (name === 'children') {
         const nextChildren = value
         const nextChildrenUnderSix = Math.min(
@@ -875,7 +888,7 @@ function App() {
         }
       }
 
-      return { ...current, [name]: value }
+      return { ...current, [name]: type === 'checkbox' ? checked : value }
     })
   }
 
@@ -939,7 +952,9 @@ function App() {
         ['Net transfer', formatCurrency(childResult.netMonthly), formatCurrency(childResult.netAnnual)],
       ]
     : []
-  const payorGrossIncome = spousalResult ? asNumber(spousalResult.payorIncome) : 0
+  const payorGrossIncome = spousalResult
+    ? asNumber(spousalResult.payorSpousalIncome, asNumber(spousalResult.payorIncome))
+    : 0
   const spousalSupportAnnual = spousalResult
     ? asNumber(spousalResult.estimatedSpousalSupportAnnual)
     : 0
@@ -948,7 +963,9 @@ function App() {
     : 0
   const payorNetIncome = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
   const activeTaxYear = spousalResult ? asNumber(spousalResult.taxYear, baseTaxYear) : baseTaxYear
-  const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
+  const recipientGrossIncome = spousalResult
+    ? asNumber(spousalResult.recipientSpousalIncome, asNumber(spousalResult.recipientIncome))
+    : 0
   const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
   const benefitFallback = spousalResult
     ? calculateSharedCustodyBenefits(
@@ -1145,7 +1162,12 @@ function App() {
             <button
               type="button"
               className="data-table__cell-button"
-              onDoubleClick={() => beginGrossIncomeEdit('payorIncome', payorGrossIncome)}
+              onDoubleClick={() =>
+                beginGrossIncomeEdit(
+                  scenario.useSeparateSpousalIncomes ? 'payorSpousalIncome' : 'payorIncome',
+                  payorGrossIncome,
+                )
+              }
             >
               <CurrencyCell value={payorValue / scale} signed={signed} />
             </button>
@@ -1188,7 +1210,12 @@ function App() {
             <button
               type="button"
               className="data-table__cell-button"
-              onDoubleClick={() => beginGrossIncomeEdit('recipientIncome', recipientGrossIncome)}
+              onDoubleClick={() =>
+                beginGrossIncomeEdit(
+                  scenario.useSeparateSpousalIncomes ? 'recipientSpousalIncome' : 'recipientIncome',
+                  recipientGrossIncome,
+                )
+              }
             >
               <CurrencyCell value={recipientValue / scale} signed={signed} />
             </button>
@@ -1385,6 +1412,58 @@ function App() {
                     onChange={handleScenarioChange}
                   />
                 </label>
+
+                <div className="scenario-drawer-toggle">
+                  <label className="form-toggle">
+                    <input
+                      aria-label="Use different incomes for spousal support only"
+                      name="useSeparateSpousalIncomes"
+                      type="checkbox"
+                      checked={scenario.useSeparateSpousalIncomes}
+                      onChange={handleScenarioChange}
+                    />
+                    <span>Use different incomes for spousal support only</span>
+                  </label>
+                </div>
+
+                <div
+                  className={`scenario-drawer ${
+                    scenario.useSeparateSpousalIncomes ? 'scenario-drawer--open' : 'scenario-drawer--closed'
+                  }`}
+                >
+                  <div className="scenario-drawer__content">
+                    <p>
+                      Optional separation-era gross incomes for spousal support only. Child support
+                      continues to use the main current gross incomes above.
+                    </p>
+
+                    <label>
+                      <span className="form-label-text">Payor income for spousal support only</span>
+                      <input
+                        aria-label="Payor income for spousal support only"
+                        name="payorSpousalIncome"
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={scenario.payorSpousalIncome}
+                        onChange={handleScenarioChange}
+                      />
+                    </label>
+
+                    <label>
+                      <span className="form-label-text">Recipient income for spousal support only</span>
+                      <input
+                        aria-label="Recipient income for spousal support only"
+                        name="recipientSpousalIncome"
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={scenario.recipientSpousalIncome}
+                        onChange={handleScenarioChange}
+                      />
+                    </label>
+                  </div>
+                </div>
 
                 <label>
                   <span className="form-label-text">

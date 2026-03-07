@@ -49,6 +49,8 @@ describe('App', () => {
           childrenUnderSix: payload.childrenUnderSix,
           payorIncome: payload.payorIncome,
           recipientIncome: payload.recipientIncome,
+          payorSpousalIncome: payload.payorSpousalIncome ?? payload.payorIncome,
+          recipientSpousalIncome: payload.recipientSpousalIncome ?? payload.recipientIncome,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -124,6 +126,9 @@ describe('App', () => {
     expect(await screen.findByLabelText('Recipient income information')).toBeInTheDocument()
     expect(await screen.findByLabelText('Target minimum percentage information')).toBeInTheDocument()
     expect(await screen.findByLabelText('Target maximum percentage information')).toBeInTheDocument()
+    expect(
+      await screen.findByLabelText('Use different incomes for spousal support only'),
+    ).toBeInTheDocument()
     expect(await screen.findAllByText('When the Gross Income Amount Needs Adjustment')).toHaveLength(2)
     expect(
       await screen.findAllByText(/income for the purpose of spousal support calculations may be different/i),
@@ -294,5 +299,32 @@ describe('App', () => {
     })
 
     expect(await screen.findByText('$250,001')).toBeInTheDocument()
+  })
+
+  it('uses alternate spousal-only incomes when the drawer is enabled', async () => {
+    render(<App />)
+
+    await screen.findByRole('table', { name: 'Net income calculation' })
+    const initialFetchCount = globalThis.fetch.mock.calls.length
+
+    fireEvent.click(screen.getByLabelText('Use different incomes for spousal support only'))
+    fireEvent.change(screen.getByLabelText('Payor income for spousal support only'), {
+      target: { value: '180000' },
+    })
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(initialFetchCount)
+    })
+
+    const spousalSupportCalls = globalThis.fetch.mock.calls.filter(
+      ([url]) => url === '/api/calculate/spousal-support',
+    )
+    const latestSpousalPayload = JSON.parse(spousalSupportCalls.at(-1)[1].body)
+
+    expect(latestSpousalPayload.payorIncome).toBe(244658)
+    expect(latestSpousalPayload.recipientIncome).toBe(30600)
+    expect(latestSpousalPayload.payorSpousalIncome).toBe(180000)
+    expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()
+    expect(await screen.findByText('$180,000')).toBeInTheDocument()
   })
 })

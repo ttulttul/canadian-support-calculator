@@ -41,6 +41,21 @@ def _require_integer(payload: dict, key: str) -> int:
     return number
 
 
+def _optional_number(payload: dict, key: str) -> float | None:
+    value = payload.get(key)
+    if value in (None, ""):
+        return None
+
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"'{key}' must be a number.") from error
+
+    if number < 0:
+        raise ValueError(f"'{key}' must be zero or greater.")
+    return number
+
+
 def _optional_tax_year(payload: dict) -> int:
     value = payload.get("taxYear", DEFAULT_TAX_YEAR)
     try:
@@ -134,6 +149,8 @@ def spousal_support():
         result = calculate_spousal_support_estimate(
             payor_income=_require_number(payload, "payorIncome"),
             recipient_income=_require_number(payload, "recipientIncome"),
+            payor_spousal_income=_optional_number(payload, "payorSpousalIncome"),
+            recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
             num_children=_require_integer(payload, "children"),
             children_under_six=_optional_children_under_six(payload),
             tax_year=_optional_tax_year(payload),

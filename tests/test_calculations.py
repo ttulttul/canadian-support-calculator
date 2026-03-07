@@ -54,6 +54,29 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["history"][-1]["recipientSharePercent"] == result["recipientSharePercent"]
 
 
+def test_spousal_support_estimate_can_use_separate_spousal_incomes():
+    result = calculate_spousal_support_estimate(
+        payor_income=244658,
+        recipient_income=30600,
+        payor_spousal_income=190000,
+        recipient_spousal_income=45000,
+        num_children=2,
+        children_under_six=0,
+        tax_year=2025,
+    )
+
+    assert result["payorIncome"] == 244658
+    assert result["recipientIncome"] == 30600
+    assert result["payorSpousalIncome"] == 190000
+    assert result["recipientSpousalIncome"] == 45000
+    assert result["childSupport"]["payorIncome"] == 244658
+    assert result["childSupport"]["recipientIncome"] == 30600
+    assert result["payorTaxableIncome"] == approx(
+        result["payorSpousalIncome"] - result["estimatedSpousalSupportAnnual"],
+        rel=1e-4,
+    )
+
+
 def test_shared_custody_benefits_include_low_income_credits():
     result = calculate_shared_custody_benefits(
         payor_adjusted_family_net_income=40_000,

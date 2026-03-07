@@ -81,3 +81,29 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert payload["recipientTax"] > payload["recipientTaxBeforeSupportInclusion"]
     assert payload["recipientTaxSupportCost"] > 0
     assert payload["benefits"]["recipient"]["totalAnnual"] > 0
+
+
+def test_spousal_support_route_accepts_separate_spousal_incomes(client):
+    response = client.post(
+        "/api/calculate/spousal-support",
+        json={
+            "jurisdiction": "BC",
+            "children": 2,
+            "taxYear": 2025,
+            "payorIncome": 244658,
+            "recipientIncome": 30600,
+            "payorSpousalIncome": 190000,
+            "recipientSpousalIncome": 45000,
+            "targetMinPercent": 40,
+            "targetMaxPercent": 46,
+        },
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["payorIncome"] == 244658
+    assert payload["recipientIncome"] == 30600
+    assert payload["payorSpousalIncome"] == 190000
+    assert payload["recipientSpousalIncome"] == 45000
+    assert payload["childSupport"]["payorIncome"] == 244658
+    assert payload["childSupport"]["recipientIncome"] == 30600
