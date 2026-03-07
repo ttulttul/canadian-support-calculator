@@ -362,14 +362,58 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  position: relative;
   color: var(--text-muted);
   cursor: help;
   font-style: normal;
   line-height: 1;
+  outline: none;
 }
 
 .info-icon svg {
   display: block;
+  pointer-events: none;
+}
+
+.info-tooltip {
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  z-index: 1;
+  width: max-content;
+  max-width: min(260px, calc(100vw - 48px));
+  padding: 8px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: #fffdf9;
+  box-shadow: 0 8px 24px rgba(36, 31, 26, 0.14);
+  color: var(--text-default);
+  font-size: 0.82rem;
+  font-style: normal;
+  font-weight: 400;
+  line-height: 1.4;
+  text-align: left;
+  opacity: 0;
+  visibility: hidden;
+  transform: translateX(-50%) translateY(4px);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease,
+    visibility 0s linear 120ms;
+  pointer-events: none;
+}
+
+.info-icon:hover .info-tooltip,
+.info-icon:focus-visible .info-tooltip {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(-50%) translateY(0);
+  transition-delay: 500ms, 500ms, 500ms;
+}
+
+.info-icon:focus-visible {
+  border-radius: 999px;
+  box-shadow: 0 0 0 2px var(--focus);
 }
 
 .empty-state,

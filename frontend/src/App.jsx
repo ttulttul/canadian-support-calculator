@@ -848,7 +848,7 @@ function App() {
               <em>{label}</em>
               <span
                 className="info-icon"
-                title="The gross employment income that would leave the same after-tax income if there were no child support, spousal support, or government benefits."
+                tabIndex={0}
                 aria-label="Equivalent before-tax income explanation"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
@@ -856,6 +856,10 @@ function App() {
                   <path d="M12 10v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                   <circle cx="12" cy="7" r="1" fill="currentColor" />
                 </svg>
+                <span className="info-tooltip" role="tooltip">
+                  The gross employment income that would leave the same after-tax income if there
+                  were no child support, spousal support, or government benefits.
+                </span>
               </span>
             </span>
           ),
