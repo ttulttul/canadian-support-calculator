@@ -203,7 +203,7 @@
   font-size: 0.88rem;
 }
 
-.scenario-form label {
+.scenario-form label:not(.form-toggle) {
   display: grid;
   gap: 6px;
   color: var(--text-default);
@@ -223,7 +223,7 @@
   font: inherit;
 }
 
-.scenario-form input,
+.scenario-form input:not([type='checkbox']),
 .scenario-form select {
   width: 100%;
   padding: 10px 12px;
@@ -233,7 +233,7 @@
   color: var(--text-default);
 }
 
-.scenario-form input:focus,
+.scenario-form input:not([type='checkbox']):focus,
 .scenario-form select:focus {
   outline: 2px solid var(--focus);
   outline-offset: 1px;

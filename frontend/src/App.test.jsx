@@ -129,6 +129,9 @@ describe('App', () => {
     expect(
       await screen.findByLabelText('Use different incomes for spousal support only'),
     ).toBeInTheDocument()
+    expect(
+      screen.getByLabelText('Use different incomes for spousal support only').parentElement,
+    ).toHaveClass('form-toggle')
     expect(await screen.findAllByText('When the Gross Income Amount Needs Adjustment')).toHaveLength(2)
     expect(
       await screen.findAllByText(/income for the purpose of spousal support calculations may be different/i),
