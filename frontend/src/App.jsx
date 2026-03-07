@@ -229,6 +229,33 @@ function calculateApproxBcTax(income, taxYear) {
   return Number(tax.toFixed(2))
 }
 
+function calculateEquivalentBeforeTaxIncome(targetNetIncome, taxYear) {
+  const normalizedTarget = Math.max(asNumber(targetNetIncome), 0)
+  if (normalizedTarget <= 0) {
+    return 0
+  }
+
+  let lower = normalizedTarget
+  let upper = Math.max(normalizedTarget, 1)
+
+  while (upper - calculateApproxBcTax(upper, taxYear) < normalizedTarget && upper < 10_000_000) {
+    upper *= 2
+  }
+
+  for (let index = 0; index < 80; index += 1) {
+    const midpoint = (lower + upper) / 2
+    const derivedNetIncome = midpoint - calculateApproxBcTax(midpoint, taxYear)
+
+    if (derivedNetIncome < normalizedTarget) {
+      lower = midpoint
+    } else {
+      upper = midpoint
+    }
+  }
+
+  return Number(upper.toFixed(2))
+}
+
 function scaleConfig(configs, taxYear) {
   if (taxYear in configs) {
     return configs[taxYear]
@@ -743,6 +770,12 @@ function App() {
         ),
       )
     : 0
+  const payorEquivalentBeforeTaxIncome = spousalResult
+    ? calculateEquivalentBeforeTaxIncome(payorNetIncome, activeTaxYear)
+    : 0
+  const recipientEquivalentBeforeTaxIncome = spousalResult
+    ? calculateEquivalentBeforeTaxIncome(recipientNetIncome, activeTaxYear)
+    : 0
   const netIncomeDivisor = netIncomePeriod === 'monthly' ? 12 : 1
   const netIncomeColumnLabel = netIncomePeriod === 'monthly' ? 'Monthly amount' : 'Annual amount'
   const netIncomeRawRows = spousalResult
@@ -778,11 +811,21 @@ function App() {
           : []),
         ['Income tax', -payorTaxBeforeSupportDeduction, -recipientTaxBeforeSupportInclusion],
         ['Estimated net income', payorNetIncome, recipientNetIncome],
+        [
+          'Equivalent before-tax income',
+          payorEquivalentBeforeTaxIncome,
+          recipientEquivalentBeforeTaxIncome,
+        ],
       ]
     : []
+  const unsignedNetIncomeLabels = new Set([
+    'Gross income',
+    'Estimated net income',
+    'Equivalent before-tax income',
+  ])
   const netIncomeDisplayRows = netIncomeRawRows.map(([label, payorValue, recipientValue]) => {
     const scale = netIncomeDivisor
-    const signed = label !== 'Estimated net income' && label !== 'Gross income'
+    const signed = !unsignedNetIncomeLabels.has(label)
 
     return [
       label,

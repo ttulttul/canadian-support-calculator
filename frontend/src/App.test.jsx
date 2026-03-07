@@ -98,6 +98,9 @@ describe('App', () => {
     expect(await screen.findByText('+$5,471')).toBeInTheDocument()
     expect(await screen.findByText('+$308')).toBeInTheDocument()
     expect(await screen.findByText('+$1,694')).toBeInTheDocument()
+    expect(await screen.findByText('Equivalent before-tax income')).toBeInTheDocument()
+    expect(await screen.findByText('$161,200')).toBeInTheDocument()
+    expect(await screen.findByText('$99,571')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
     expect(screen.queryByText('Flask API')).not.toBeInTheDocument()
@@ -128,6 +131,7 @@ describe('App', () => {
     expect(screen.getByRole('button', { name: 'Monthly' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('columnheader', { name: 'Payor Monthly amount' })).toBeInTheDocument()
     expect(screen.getByText('+$892')).toBeInTheDocument()
+    expect(screen.getByText('$13,433')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
 
