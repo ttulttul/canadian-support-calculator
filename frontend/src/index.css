@@ -1,0 +1,35 @@
+:root {
+  font-family: 'Avenir Next', 'Trebuchet MS', sans-serif;
+  color: #f7f2e6;
+  background:
+    radial-gradient(circle at top left, rgba(255, 188, 120, 0.35), transparent 22%),
+    radial-gradient(circle at 85% 18%, rgba(93, 179, 171, 0.25), transparent 18%),
+    linear-gradient(180deg, #f4ede2 0%, #e0efe6 45%, #d7e2ef 100%);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+  line-height: 1.5;
+  font-weight: 400;
+  --ink: #1d2627;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--ink);
+}
+
+a {
+  color: inherit;
+}
