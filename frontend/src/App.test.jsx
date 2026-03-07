@@ -156,8 +156,12 @@ describe('App', () => {
       expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
     })
 
-    fireEvent.click(screen.getByLabelText('Recalculate automatically'))
-    expect(screen.getByLabelText('Recalculate automatically')).not.toBeChecked()
+    const autoRecalculate = screen.getByLabelText('Recalculate automatically')
+    expect(autoRecalculate.parentElement).toHaveClass('form-toggle')
+    expect(autoRecalculate.parentElement?.firstElementChild).toBe(autoRecalculate)
+
+    fireEvent.click(autoRecalculate)
+    expect(autoRecalculate).not.toBeChecked()
     expect(screen.getByRole('button', { name: 'Recalculate' })).toBeEnabled()
 
     fireEvent.change(screen.getByLabelText('Tax year'), { target: { value: '2025' } })

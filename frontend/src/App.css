@@ -208,6 +208,7 @@
 
 .form-toggle {
   display: inline-flex;
+  flex-direction: row;
   align-items: center;
   gap: 10px;
   margin-right: auto;
@@ -218,7 +219,17 @@
 
 .form-toggle input {
   width: auto;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   margin: 0;
+  flex: 0 0 auto;
+}
+
+.form-toggle span {
+  display: inline;
 }
 
 .form-actions button {
