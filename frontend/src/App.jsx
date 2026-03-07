@@ -23,6 +23,10 @@ function formatPercent(value) {
   return `${Number(value ?? 0).toFixed(2)}%`
 }
 
+function asNumber(value, fallback = 0) {
+  return Number.isFinite(Number(value)) ? Number(value) : fallback
+}
+
 async function postJson(url, payload) {
   const response = await fetch(url, {
     method: 'POST',
@@ -218,17 +222,31 @@ function App() {
       formatCurrency(entry.spousalSupportAnnual),
       formatPercent(entry.recipientSharePercent),
     ]) ?? []
+  const payorGrossIncome = spousalResult ? asNumber(spousalResult.payorIncome) : 0
+  const spousalSupportAnnual = spousalResult
+    ? asNumber(spousalResult.estimatedSpousalSupportAnnual)
+    : 0
+  const childSupportAnnual = spousalResult
+    ? asNumber(spousalResult.childSupport?.netAnnual)
+    : 0
+  const payorNetIncome = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
+  const payorTaxableIncome = spousalResult
+    ? asNumber(spousalResult.payorTaxableIncome, payorGrossIncome - spousalSupportAnnual)
+    : 0
+  const payorTax = spousalResult
+    ? asNumber(
+        spousalResult.payorTax,
+        payorGrossIncome - childSupportAnnual - spousalSupportAnnual - payorNetIncome,
+      )
+    : 0
   const payorNetIncomeRows = spousalResult
     ? [
-        ['Gross income', formatCurrency(spousalResult.payorIncome)],
-        ['Taxable income after spousal support', formatCurrency(spousalResult.payorTaxableIncome)],
-        ['Estimated tax', formatCurrency(spousalResult.payorTax)],
-        ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
-        [
-          'Spousal support annual',
-          formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
-        ],
-        ['Estimated net income', formatCurrency(spousalResult.ndiPayor)],
+        ['Gross income', formatCurrency(payorGrossIncome)],
+        ['Taxable income after spousal support', formatCurrency(payorTaxableIncome)],
+        ['Estimated tax', formatCurrency(payorTax)],
+        ['Child support annual', formatCurrency(childSupportAnnual)],
+        ['Spousal support annual', formatCurrency(spousalSupportAnnual)],
+        ['Estimated net income', formatCurrency(payorNetIncome)],
       ]
     : []
 
@@ -406,11 +424,10 @@ function App() {
             {spousalResult ? (
               <>
                 <p className="summary-expression">
-                  {formatCurrency(spousalResult.payorIncome)} gross -{' '}
-                  {formatCurrency(spousalResult.payorTax)} tax -{' '}
-                  {formatCurrency(spousalResult.childSupport.netAnnual)} child support -{' '}
-                  {formatCurrency(spousalResult.estimatedSpousalSupportAnnual)} spousal support
-                  = {formatCurrency(spousalResult.ndiPayor)} net
+                  {formatCurrency(payorGrossIncome)} gross - {formatCurrency(payorTax)} tax -{' '}
+                  {formatCurrency(childSupportAnnual)} child support -{' '}
+                  {formatCurrency(spousalSupportAnnual)} spousal support ={' '}
+                  {formatCurrency(payorNetIncome)} net
                 </p>
                 <ResultTable
                   caption="Payor net income calculation"

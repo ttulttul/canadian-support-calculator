@@ -44,8 +44,6 @@ describe('App', () => {
           estimatedSpousalSupportAnnual: 22181.64,
           taxYear: payload.taxYear,
           payorIncome: payload.payorIncome,
-          payorTaxableIncome: 222476.36,
-          payorTax: 31160.24,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -78,6 +76,8 @@ describe('App', () => {
     expect(await screen.findByRole('table', { name: 'Payor net income calculation' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
+    expect(await screen.findByText('$75,978.60')).toBeInTheDocument()
+    expect(await screen.findByText('$222,476.36')).toBeInTheDocument()
     expect(await screen.findByText('Estimated tax')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
