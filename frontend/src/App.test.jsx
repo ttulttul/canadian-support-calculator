@@ -248,6 +248,7 @@ describe('App', () => {
 
     const payorGrossIncomeEditor = await screen.findByLabelText('Edit payor gross income')
     expect(payorGrossIncomeEditor).toHaveClass('data-table__input')
+    expect(payorGrossIncomeEditor).toHaveAttribute('type', 'text')
     fireEvent.change(payorGrossIncomeEditor, { target: { value: '250000' } })
     fireEvent.keyDown(payorGrossIncomeEditor, { key: 'Enter', code: 'Enter' })
 

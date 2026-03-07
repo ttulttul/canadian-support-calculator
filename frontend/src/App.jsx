@@ -256,6 +256,10 @@ function calculateEquivalentBeforeTaxIncome(targetNetIncome, taxYear) {
   return Number(upper.toFixed(2))
 }
 
+function parseEditableIncome(value) {
+  return Number(String(value).replace(/[$,\s]/g, ''))
+}
+
 function scaleConfig(configs, taxYear) {
   if (taxYear in configs) {
     return configs[taxYear]
@@ -848,7 +852,7 @@ function App() {
       return
     }
 
-    const parsedValue = Number(editingGrossIncome.value)
+    const parsedValue = parseEditableIncome(editingGrossIncome.value)
     if (!Number.isFinite(parsedValue) || parsedValue < 0) {
       setEditingGrossIncome(null)
       return
@@ -1065,9 +1069,8 @@ function App() {
           isGrossIncomeRow && editingGrossIncome?.fieldName === 'payorIncome' ? (
             <input
               className="data-table__input"
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="numeric"
               aria-label="Edit payor gross income"
               value={editingGrossIncome.value}
               autoFocus
@@ -1106,9 +1109,8 @@ function App() {
           isGrossIncomeRow && editingGrossIncome?.fieldName === 'recipientIncome' ? (
             <input
               className="data-table__input"
-              type="number"
-              min="0"
-              step="1"
+              type="text"
+              inputMode="numeric"
               aria-label="Edit recipient gross income"
               value={editingGrossIncome.value}
               autoFocus
