@@ -104,7 +104,6 @@ describe('App', () => {
     expect(
       await screen.findByRole('table', { name: 'Net income calculation' }),
     ).toBeInTheDocument()
-    expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByText('Canada child benefit')).toBeInTheDocument()
     expect(await screen.findByText('GST/HST credit')).toBeInTheDocument()
     expect(await screen.findByText('B.C. family benefit')).toBeInTheDocument()
@@ -124,11 +123,15 @@ describe('App', () => {
     expect(screen.getByText('-$86,685')).toHaveClass('signed-value--negative')
     expect(screen.getByRole('button', { name: 'Annual' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Show details' })).toHaveAttribute(
+    expect(await screen.findByText('References')).toBeInTheDocument()
+    expect(screen.getAllByText('Child support').length).toBeGreaterThan(0)
+    expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show Details' })).toHaveAttribute(
       'aria-expanded',
       'false',
     )
-    expect(screen.getByText('Spousal support calculations are hidden.')).toBeInTheDocument()
+    expect(screen.getByText('Spousal support calculations')).toBeInTheDocument()
+    expect(screen.getByText('Calculation Details')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Monthly' }))
 
@@ -136,9 +139,9 @@ describe('App', () => {
     expect(screen.getByRole('columnheader', { name: 'Payor Monthly amount' })).toBeInTheDocument()
     expect(screen.getByText('+$892')).toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Show details' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
 
-    expect(screen.getByRole('button', { name: 'Hide details' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: 'Hide Details' })).toHaveAttribute(
       'aria-expanded',
       'true',
     )
@@ -150,7 +153,7 @@ describe('App', () => {
   it('recalculates automatically and allows manual mode', async () => {
     render(<App />)
 
-    await screen.findByRole('table', { name: 'Child support amounts' })
+    await screen.findByRole('table', { name: 'Net income calculation' })
     const initialFetchCount = globalThis.fetch.mock.calls.length
 
     expect(screen.getByLabelText('Recalculate automatically')).toBeChecked()

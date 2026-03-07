@@ -605,43 +605,6 @@ function App() {
               </div>
             </form>
           </section>
-
-          <section className="panel-section">
-            <h2>Reference</h2>
-            <DetailList
-              items={[
-                {
-                  label: 'Supported child counts',
-                  value: supportedChildren.length ? supportedChildren.join(', ') : 'Loading',
-                },
-                {
-                  label: 'Target range',
-                  value: `${scenario.targetMinPercent}% to ${scenario.targetMaxPercent}% recipient NDI`,
-                },
-                {
-                  label: 'Children under 6',
-                  value: scenario.childrenUnderSix,
-                },
-                {
-                  label: 'Tax year',
-                  value: scenario.taxYear,
-                },
-                {
-                  label: 'Data note',
-                  value: metadata?.disclaimer ?? 'Loading',
-                },
-                {
-                  label: 'Benefit assumptions',
-                  value: metadata?.benefitAssumptions ?? 'Loading',
-                },
-                {
-                  label: 'Children note',
-                  value: metadata?.supportedChildrenNote ?? 'Loading',
-                },
-              ]}
-            />
-            {metadataError ? <p className="error-text">{metadataError}</p> : null}
-          </section>
         </aside>
 
         <section className="results-panel">
@@ -688,49 +651,8 @@ function App() {
           <section className="panel-section">
             <div className="section-header">
               <div>
-                <h2>Child support</h2>
-                <p>Monthly table amounts with offset calculation.</p>
-              </div>
-              {childResult ? <strong>{formatCurrency(childResult.netMonthly)}</strong> : null}
-            </div>
-
-            {childError ? <p className="error-text">{childError}</p> : null}
-
-            {childResult ? (
-              <>
-                <DetailList
-                  emphasis
-                  items={[
-                    {
-                      label: 'Transfer direction',
-                      value:
-                        childResult.direction === 'payor_to_recipient'
-                          ? 'Payor to recipient'
-                          : childResult.direction === 'recipient_to_payor'
-                            ? 'Recipient to payor'
-                            : 'No transfer',
-                    },
-                    { label: 'Net monthly transfer', value: formatCurrency(childResult.netMonthly) },
-                    { label: 'Net annual transfer', value: formatCurrency(childResult.netAnnual) },
-                  ]}
-                />
-                <ResultTable
-                  caption="Child support amounts"
-                  columns={['Party', 'Monthly', 'Annual']}
-                  rows={childRows}
-                  numericColumnIndexes={[1, 2]}
-                />
-              </>
-            ) : (
-              <p className="empty-state">Results will appear here after the first calculation.</p>
-            )}
-          </section>
-
-          <section className="panel-section">
-            <div className="section-header">
-              <div>
-                <h2>Spousal support calculations</h2>
-                <p>Iteration details used to place the recipient inside the selected NDI range.</p>
+                <h2>Calculation Details</h2>
+                <p>Child support and spousal-support iteration details for the current scenario.</p>
               </div>
               <button
                 type="button"
@@ -738,57 +660,141 @@ function App() {
                 aria-expanded={spousalDetailsOpen}
                 onClick={() => setSpousalDetailsOpen((current) => !current)}
               >
-                {spousalDetailsOpen ? 'Hide details' : 'Show details'}
+                {spousalDetailsOpen ? 'Hide Details' : 'Show Details'}
               </button>
             </div>
 
-            {spousalResult && spousalDetailsOpen ? (
-              <>
-                <DetailList
-                  emphasis
-                  items={[
-                    {
-                      label: 'Estimated monthly spousal support',
-                      value: formatCurrency(spousalResult.estimatedSpousalSupportMonthly),
-                    },
-                    {
-                      label: 'Estimated annual spousal support',
-                      value: formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
-                    },
-                    {
-                      label: 'Recipient share of NDI',
-                      value: formatPercent(spousalResult.recipientSharePercent),
-                    },
-                    {
-                      label: 'Iterations',
-                      value: String(spousalResult.iterations),
-                    },
-                  ]}
-                />
-                <ResultTable
-                  caption="Net disposable income"
-                  columns={['Party', 'NDI']}
-                  rows={[
-                    ['Payor', formatCurrency(spousalResult.ndiPayor)],
-                    ['Recipient', formatCurrency(spousalResult.ndiRecipient)],
-                    ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
-                    ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
-                  ]}
-                  numericColumnIndexes={[1]}
-                />
-                <ResultTable
-                  caption="Recent iterations"
-                  columns={['Iteration', 'Spousal support', 'Recipient NDI share']}
-                  rows={spousalHistoryRows}
-                  numericColumnIndexes={[1]}
-                />
-              </>
-            ) : spousalResult ? (
-              <p className="empty-state">Spousal support calculations are hidden.</p>
+            {childError ? <p className="error-text">{childError}</p> : null}
+            {spousalError ? <p className="error-text">{spousalError}</p> : null}
+
+            {childResult || spousalResult ? (
+              <div
+                className={`details-drawer ${spousalDetailsOpen ? 'details-drawer--open' : 'details-drawer--closed'}`}
+              >
+                <div className="details-drawer__content">
+                  {childResult ? (
+                    <section className="details-block">
+                      <div className="details-block__header">
+                        <h3>Child support</h3>
+                        <strong>{formatCurrency(childResult.netMonthly)}</strong>
+                      </div>
+                      <p>Monthly table amounts with offset calculation.</p>
+                      <DetailList
+                        emphasis
+                        items={[
+                          {
+                            label: 'Transfer direction',
+                            value:
+                              childResult.direction === 'payor_to_recipient'
+                                ? 'Payor to recipient'
+                                : childResult.direction === 'recipient_to_payor'
+                                  ? 'Recipient to payor'
+                                  : 'No transfer',
+                          },
+                          { label: 'Net monthly transfer', value: formatCurrency(childResult.netMonthly) },
+                          { label: 'Net annual transfer', value: formatCurrency(childResult.netAnnual) },
+                        ]}
+                      />
+                      <ResultTable
+                        caption="Child support amounts"
+                        columns={['Party', 'Monthly', 'Annual']}
+                        rows={childRows}
+                        numericColumnIndexes={[1, 2]}
+                      />
+                    </section>
+                  ) : null}
+
+                  {spousalResult ? (
+                    <section className="details-block">
+                      <div className="details-block__header">
+                        <h3>Spousal support calculations</h3>
+                        <strong>{formatCurrency(spousalResult.estimatedSpousalSupportMonthly)}</strong>
+                      </div>
+                      <p>Iteration details used to place the recipient inside the selected NDI range.</p>
+                      <DetailList
+                        emphasis
+                        items={[
+                          {
+                            label: 'Estimated monthly spousal support',
+                            value: formatCurrency(spousalResult.estimatedSpousalSupportMonthly),
+                          },
+                          {
+                            label: 'Estimated annual spousal support',
+                            value: formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
+                          },
+                          {
+                            label: 'Recipient share of NDI',
+                            value: formatPercent(spousalResult.recipientSharePercent),
+                          },
+                          {
+                            label: 'Iterations',
+                            value: String(spousalResult.iterations),
+                          },
+                        ]}
+                      />
+                      <ResultTable
+                        caption="Net disposable income"
+                        columns={['Party', 'NDI']}
+                        rows={[
+                          ['Payor', formatCurrency(spousalResult.ndiPayor)],
+                          ['Recipient', formatCurrency(spousalResult.ndiRecipient)],
+                          ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
+                          ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
+                        ]}
+                        numericColumnIndexes={[1]}
+                      />
+                      <ResultTable
+                        caption="Recent iterations"
+                        columns={['Iteration', 'Spousal support', 'Recipient NDI share']}
+                        rows={spousalHistoryRows}
+                        numericColumnIndexes={[1]}
+                      />
+                    </section>
+                  ) : null}
+                </div>
+              </div>
             ) : (
               <p className="empty-state">Results will appear here after the first calculation.</p>
             )}
           </section>
+
+        </section>
+
+        <section className="panel-section workspace__full">
+          <h2>References</h2>
+          <DetailList
+            items={[
+              {
+                label: 'Supported child counts',
+                value: supportedChildren.length ? supportedChildren.join(', ') : 'Loading',
+              },
+              {
+                label: 'Target range',
+                value: `${scenario.targetMinPercent}% to ${scenario.targetMaxPercent}% recipient NDI`,
+              },
+              {
+                label: 'Children under 6',
+                value: scenario.childrenUnderSix,
+              },
+              {
+                label: 'Tax year',
+                value: scenario.taxYear,
+              },
+              {
+                label: 'Data note',
+                value: metadata?.disclaimer ?? 'Loading',
+              },
+              {
+                label: 'Benefit assumptions',
+                value: metadata?.benefitAssumptions ?? 'Loading',
+              },
+              {
+                label: 'Children note',
+                value: metadata?.supportedChildrenNote ?? 'Loading',
+              },
+            ]}
+          />
+          {metadataError ? <p className="error-text">{metadataError}</p> : null}
         </section>
       </main>
     </div>
