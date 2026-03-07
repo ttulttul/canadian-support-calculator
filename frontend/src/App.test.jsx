@@ -101,10 +101,12 @@ describe('App', () => {
     const equivalentIncomeLabel = await screen.findByText('Equivalent before-tax income')
     expect(equivalentIncomeLabel.tagName).toBe('EM')
     expect(equivalentIncomeLabel.closest('td')).toHaveClass('data-table__informational')
-    expect(screen.getByLabelText('Equivalent before-tax income explanation')).toHaveAttribute(
+    const equivalentIncomeInfoIcon = screen.getByLabelText('Equivalent before-tax income explanation')
+    expect(equivalentIncomeInfoIcon).toHaveAttribute(
       'title',
       'The gross employment income that would leave the same after-tax income if there were no child support, spousal support, or government benefits.',
     )
+    expect(equivalentIncomeInfoIcon.querySelector('svg')).not.toBeNull()
     expect(await screen.findByText('$161,200')).toBeInTheDocument()
     expect(await screen.findByText('$99,571')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()

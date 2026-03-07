@@ -355,11 +355,17 @@
 }
 
 .info-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   color: var(--text-muted);
   cursor: help;
   font-style: normal;
-  font-size: 0.8rem;
   line-height: 1;
+}
+
+.info-icon svg {
+  display: block;
 }
 
 .empty-state,

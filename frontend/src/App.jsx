@@ -839,7 +839,11 @@ function App() {
                 title="The gross employment income that would leave the same after-tax income if there were no child support, spousal support, or government benefits."
                 aria-label="Equivalent before-tax income explanation"
               >
-                (i)
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+                  <path d="M12 10v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  <circle cx="12" cy="7" r="1" fill="currentColor" />
+                </svg>
               </span>
             </span>
           ),
