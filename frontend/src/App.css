@@ -349,6 +349,7 @@
   font: inherit;
   line-height: inherit;
   text-align: right;
+  float: right;
 }
 
 .data-table__input:focus {
