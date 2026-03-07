@@ -1641,6 +1641,16 @@ function App() {
                         emphasis
                         items={[
                           {
+                            label: 'Payor income used for spousal support',
+                            value: formatCurrency(spousalResult.payorSpousalIncome ?? spousalResult.payorIncome),
+                          },
+                          {
+                            label: 'Recipient income used for spousal support',
+                            value: formatCurrency(
+                              spousalResult.recipientSpousalIncome ?? spousalResult.recipientIncome,
+                            ),
+                          },
+                          {
                             label: 'Estimated monthly spousal support',
                             value: formatCurrency(spousalResult.estimatedSpousalSupportMonthly),
                           },

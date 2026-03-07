@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import App from './App'
@@ -8,6 +8,112 @@ function mockResponse(body, ok = true) {
     ok,
     json: async () => body,
   })
+}
+
+function buildSpousalResponse(payload) {
+  const usingAlternatePayorIncome = payload.payorSpousalIncome === 180000
+  const payorSpousalIncome = payload.payorSpousalIncome ?? payload.payorIncome
+  const recipientSpousalIncome = payload.recipientSpousalIncome ?? payload.recipientIncome
+
+  if (usingAlternatePayorIncome) {
+    return {
+      estimatedSpousalSupportMonthly: 0,
+      estimatedSpousalSupportAnnual: 0,
+      taxYear: payload.taxYear,
+      children: payload.children,
+      childrenUnderSix: payload.childrenUnderSix,
+      payorIncome: payload.payorIncome,
+      recipientIncome: payload.recipientIncome,
+      payorSpousalIncome,
+      recipientSpousalIncome,
+      recipientSharePercent: 41.83,
+      iterations: 19,
+      ndiPayor: 93248.4,
+      ndiRecipient: 67212.66,
+      childSupport: {
+        netAnnual: 33395.52,
+      },
+      history: [
+        {
+          iteration: 16,
+          spousalSupportAnnual: 1000,
+          recipientSharePercent: 42.2,
+          ndiPayor: 92450,
+          ndiRecipient: 68011,
+        },
+        {
+          iteration: 17,
+          spousalSupportAnnual: 500,
+          recipientSharePercent: 42.0,
+          ndiPayor: 92840,
+          ndiRecipient: 67621,
+        },
+        {
+          iteration: 18,
+          spousalSupportAnnual: 0,
+          recipientSharePercent: 41.83,
+          ndiPayor: 93248.4,
+          ndiRecipient: 67212.66,
+        },
+      ],
+    }
+  }
+
+  return {
+    estimatedSpousalSupportMonthly: 1848.47,
+    estimatedSpousalSupportAnnual: 22181.64,
+    taxYear: payload.taxYear,
+    children: payload.children,
+    childrenUnderSix: payload.childrenUnderSix,
+    payorIncome: payload.payorIncome,
+    recipientIncome: payload.recipientIncome,
+    payorSpousalIncome,
+    recipientSpousalIncome,
+    recipientSharePercent: payload.targetMinPercent,
+    iterations: 27,
+    ndiPayor: 113102.24,
+    ndiRecipient: 75400.99,
+    childSupport: {
+      netAnnual: 33395.52,
+    },
+    history: [
+      {
+        iteration: 22,
+        spousalSupportAnnual: 21000,
+        recipientSharePercent: 39.1,
+        ndiPayor: 114920.0,
+        ndiRecipient: 73583.0,
+      },
+      {
+        iteration: 23,
+        spousalSupportAnnual: 21500,
+        recipientSharePercent: 39.4,
+        ndiPayor: 114102.0,
+        ndiRecipient: 74401.0,
+      },
+      {
+        iteration: 24,
+        spousalSupportAnnual: 22000,
+        recipientSharePercent: 39.7,
+        ndiPayor: 113480.0,
+        ndiRecipient: 75023.0,
+      },
+      {
+        iteration: 25,
+        spousalSupportAnnual: 22125,
+        recipientSharePercent: 39.9,
+        ndiPayor: 113230.0,
+        ndiRecipient: 75273.0,
+      },
+      {
+        iteration: 26,
+        spousalSupportAnnual: 22181.64,
+        recipientSharePercent: 40.0,
+        ndiPayor: 113102.24,
+        ndiRecipient: 75400.99,
+      },
+    ],
+  }
 }
 
 describe('App', () => {
@@ -42,60 +148,7 @@ describe('App', () => {
 
       if (url === '/api/calculate/spousal-support') {
         const payload = JSON.parse(options.body)
-        return mockResponse({
-          estimatedSpousalSupportMonthly: 1848.47,
-          estimatedSpousalSupportAnnual: 22181.64,
-          taxYear: payload.taxYear,
-          childrenUnderSix: payload.childrenUnderSix,
-          payorIncome: payload.payorIncome,
-          recipientIncome: payload.recipientIncome,
-          payorSpousalIncome: payload.payorSpousalIncome ?? payload.payorIncome,
-          recipientSpousalIncome: payload.recipientSpousalIncome ?? payload.recipientIncome,
-          recipientSharePercent: payload.targetMinPercent,
-          iterations: 27,
-          ndiPayor: 113102.24,
-          ndiRecipient: 75400.99,
-          childSupport: {
-            netAnnual: 33395.52,
-          },
-          history: [
-            {
-              iteration: 22,
-              spousalSupportAnnual: 21000,
-              recipientSharePercent: 39.1,
-              ndiPayor: 114920.0,
-              ndiRecipient: 73583.0,
-            },
-            {
-              iteration: 23,
-              spousalSupportAnnual: 21500,
-              recipientSharePercent: 39.4,
-              ndiPayor: 114102.0,
-              ndiRecipient: 74401.0,
-            },
-            {
-              iteration: 24,
-              spousalSupportAnnual: 22000,
-              recipientSharePercent: 39.7,
-              ndiPayor: 113480.0,
-              ndiRecipient: 75023.0,
-            },
-            {
-              iteration: 25,
-              spousalSupportAnnual: 22125,
-              recipientSharePercent: 39.9,
-              ndiPayor: 113230.0,
-              ndiRecipient: 75273.0,
-            },
-            {
-              iteration: 26,
-              spousalSupportAnnual: 22181.64,
-              recipientSharePercent: 40.0,
-              ndiPayor: 113102.24,
-              ndiRecipient: 75400.99,
-            },
-          ],
-        })
+        return mockResponse(buildSpousalResponse(payload))
       }
 
       return Promise.reject(new Error(`Unexpected request: ${url}`))
@@ -212,6 +265,8 @@ describe('App', () => {
     expect(await screen.findByText('NDI convergence')).toBeInTheDocument()
     expect(await screen.findByText('Payor NDI')).toBeInTheDocument()
     expect(await screen.findByText('Recipient NDI')).toBeInTheDocument()
+    expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
+    expect(await screen.findByText('$244,658')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support calculations')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
@@ -271,10 +326,10 @@ describe('App', () => {
   it('allows editing gross income directly from the net income table', async () => {
     render(<App />)
 
-    await screen.findByRole('table', { name: 'Net income calculation' })
+    const netIncomeTable = await screen.findByRole('table', { name: 'Net income calculation' })
     const initialFetchCount = globalThis.fetch.mock.calls.length
 
-    fireEvent.doubleClick(screen.getByText('$244,658'))
+    fireEvent.doubleClick(within(netIncomeTable).getByText('$244,658'))
 
     const payorGrossIncomeEditor = await screen.findByLabelText('Edit payor gross income')
     expect(payorGrossIncomeEditor).toHaveClass('data-table__input')
@@ -301,7 +356,7 @@ describe('App', () => {
       expect(screen.getByLabelText('Payor income')).toHaveValue(250001)
     })
 
-    expect(await screen.findByText('$250,001')).toBeInTheDocument()
+    expect(within(netIncomeTable).getByText('$250,001')).toBeInTheDocument()
   })
 
   it('uses alternate spousal-only incomes when the drawer is enabled', async () => {
@@ -328,6 +383,9 @@ describe('App', () => {
     expect(latestSpousalPayload.recipientIncome).toBe(30600)
     expect(latestSpousalPayload.payorSpousalIncome).toBe(180000)
     expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()
-    expect(await screen.findByText('$180,000')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
+    expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
+    expect(await screen.findAllByText('$180,000')).toHaveLength(2)
+    expect(await screen.findAllByText('$93,248')).toHaveLength(2)
   })
 })
