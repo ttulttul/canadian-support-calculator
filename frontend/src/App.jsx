@@ -134,13 +134,14 @@ function DetailList({ items, emphasis = false }) {
 
 function CurrencyCell({ value, signed = false }) {
   const amount = asNumber(value)
-  const className = signed
-    ? amount > 0
-      ? 'signed-value signed-value--positive'
-      : amount < 0
-        ? 'signed-value signed-value--negative'
-        : 'signed-value'
-    : ''
+  const className = [
+    'currency-cell',
+    signed ? 'signed-value' : '',
+    signed && amount > 0 ? 'signed-value--positive' : '',
+    signed && amount < 0 ? 'signed-value--negative' : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
   const content = signed ? formatSignedCurrency(amount) : formatCurrency(amount)
 
   return <span className={className}>{content}</span>
@@ -470,11 +471,6 @@ function App() {
         <div>
           <h1>Canadian Support Calculator</h1>
           <p>British Columbia child support and spousal support estimates.</p>
-        </div>
-        <div className="toolbar__meta">
-          <span>Flask API</span>
-          <span>React client</span>
-          {metadata ? <span>{metadata.jurisdictions[0].name}</span> : null}
         </div>
       </header>
 

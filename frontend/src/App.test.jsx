@@ -113,6 +113,8 @@ describe('App', () => {
     expect(await screen.findByText('-$4,638')).toBeInTheDocument()
     expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
+    expect(screen.queryByText('Flask API')).not.toBeInTheDocument()
+    expect(screen.queryByText('React client')).not.toBeInTheDocument()
     expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toHaveClass(
       'data-table__numeric',
     )
@@ -121,6 +123,7 @@ describe('App', () => {
     )
     expect(screen.getByText('+$10,707')).toHaveClass('signed-value--positive')
     expect(screen.getByText('-$86,685')).toHaveClass('signed-value--negative')
+    expect(screen.getByText('+$10,707')).toHaveClass('currency-cell')
     expect(screen.getByRole('button', { name: 'Annual' })).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('columnheader', { name: 'Payor Annual amount' })).toBeInTheDocument()
     expect(await screen.findByText('References')).toBeInTheDocument()
