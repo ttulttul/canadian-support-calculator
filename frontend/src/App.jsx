@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import './App.css'
 
 const defaultScenario = {
@@ -82,12 +82,14 @@ function ResultTable({ caption, columns, rows }) {
 function App() {
   const [metadata, setMetadata] = useState(null)
   const [scenario, setScenario] = useState(defaultScenario)
+  const [autoRecalculate, setAutoRecalculate] = useState(true)
   const [childResult, setChildResult] = useState(null)
   const [spousalResult, setSpousalResult] = useState(null)
   const [childError, setChildError] = useState('')
   const [spousalError, setSpousalError] = useState('')
   const [metadataError, setMetadataError] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
+  const requestSequence = useRef(0)
 
   useEffect(() => {
     let active = true
@@ -116,6 +118,8 @@ function App() {
   }, [])
 
   async function submitScenario(activeScenario) {
+    const requestId = requestSequence.current + 1
+    requestSequence.current = requestId
     setIsCalculating(true)
     setChildError('')
     setSpousalError('')
@@ -137,6 +141,10 @@ function App() {
       }),
     ])
 
+    if (requestId !== requestSequence.current) {
+      return
+    }
+
     if (childResponse.status === 'fulfilled') {
       setChildResult(childResponse.value)
     } else {
@@ -154,17 +162,29 @@ function App() {
     setIsCalculating(false)
   }
 
-  const hydrateScenario = useEffectEvent(() => {
-    void submitScenario(scenario)
-  })
-
-  useEffect(() => {
-    if (!metadata) {
+  const submitCurrentScenario = useEffectEvent((activeScenario) => {
+    const requiredFields = [
+      activeScenario.children,
+      activeScenario.taxYear,
+      activeScenario.payorIncome,
+      activeScenario.recipientIncome,
+      activeScenario.targetMinPercent,
+      activeScenario.targetMaxPercent,
+    ]
+    if (requiredFields.some((value) => value === '')) {
       return
     }
 
-    hydrateScenario()
-  }, [metadata])
+    void submitScenario(activeScenario)
+  })
+
+  useEffect(() => {
+    if (!metadata || !autoRecalculate) {
+      return
+    }
+
+    submitCurrentScenario(scenario)
+  }, [autoRecalculate, metadata, scenario])
 
   function handleScenarioChange(event) {
     const { name, value } = event.target
@@ -198,6 +218,19 @@ function App() {
       formatCurrency(entry.spousalSupportAnnual),
       formatPercent(entry.recipientSharePercent),
     ]) ?? []
+  const payorNetIncomeRows = spousalResult
+    ? [
+        ['Gross income', formatCurrency(spousalResult.payorIncome)],
+        ['Taxable income after spousal support', formatCurrency(spousalResult.payorTaxableIncome)],
+        ['Estimated tax', formatCurrency(spousalResult.payorTax)],
+        ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
+        [
+          'Spousal support annual',
+          formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
+        ],
+        ['Estimated net income', formatCurrency(spousalResult.ndiPayor)],
+      ]
+    : []
 
   return (
     <div className="app-shell">
@@ -309,7 +342,16 @@ function App() {
               </div>
 
               <div className="form-actions">
-                <button type="submit" disabled={isCalculating}>
+                <label className="form-toggle">
+                  <input
+                    name="autoRecalculate"
+                    type="checkbox"
+                    checked={autoRecalculate}
+                    onChange={(event) => setAutoRecalculate(event.target.checked)}
+                  />
+                  <span>Recalculate automatically</span>
+                </label>
+                <button type="submit" disabled={isCalculating || autoRecalculate}>
                   {isCalculating ? 'Calculating' : 'Recalculate'}
                 </button>
                 <button type="button" className="button-secondary" onClick={handleReset}>
@@ -350,6 +392,37 @@ function App() {
         </aside>
 
         <section className="results-panel">
+          <section className="panel-section">
+            <div className="section-header">
+              <div>
+                <h2>Payor net income</h2>
+                <p>Estimated annual income after tax, child support, and spousal support.</p>
+              </div>
+              {spousalResult ? <strong>{formatCurrency(spousalResult.ndiPayor)}</strong> : null}
+            </div>
+
+            {spousalError ? <p className="error-text">{spousalError}</p> : null}
+
+            {spousalResult ? (
+              <>
+                <p className="summary-expression">
+                  {formatCurrency(spousalResult.payorIncome)} gross -{' '}
+                  {formatCurrency(spousalResult.payorTax)} tax -{' '}
+                  {formatCurrency(spousalResult.childSupport.netAnnual)} child support -{' '}
+                  {formatCurrency(spousalResult.estimatedSpousalSupportAnnual)} spousal support
+                  = {formatCurrency(spousalResult.ndiPayor)} net
+                </p>
+                <ResultTable
+                  caption="Payor net income calculation"
+                  columns={['Component', 'Annual amount']}
+                  rows={payorNetIncomeRows}
+                />
+              </>
+            ) : (
+              <p className="empty-state">Results will appear here after the first calculation.</p>
+            )}
+          </section>
+
           <section className="panel-section">
             <div className="section-header">
               <div>
@@ -400,8 +473,6 @@ function App() {
                 <strong>{formatCurrency(spousalResult.estimatedSpousalSupportMonthly)}</strong>
               ) : null}
             </div>
-
-            {spousalError ? <p className="error-text">{spousalError}</p> : null}
 
             {spousalResult ? (
               <>

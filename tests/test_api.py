@@ -73,3 +73,4 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert response.status_code == 200
     assert payload["taxYear"] == 2025
     assert payload["childSupport"]["children"] == 7
+    assert payload["payorTax"] > 0

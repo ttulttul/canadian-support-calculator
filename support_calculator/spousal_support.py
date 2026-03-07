@@ -98,6 +98,11 @@ def calculate_spousal_support_estimate(
         logger.warning("Maximum iterations reached before convergence.")
 
     final_snapshot = history[-1]
+    estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
+    payor_taxable_income = max(payor_income - estimated_spousal_support_annual, 0.0)
+    recipient_taxable_income = recipient_income + estimated_spousal_support_annual
+    payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
+    recipient_tax = calculate_bc_tax_approx(recipient_taxable_income, tax_year=tax_year)
     return {
         "jurisdiction": "BC",
         "children": num_children,
@@ -108,12 +113,16 @@ def calculate_spousal_support_estimate(
             "min": round(target_min_percent, 2),
             "max": round(target_max_percent, 2),
         },
-        "estimatedSpousalSupportAnnual": final_snapshot["spousalSupportAnnual"],
+        "estimatedSpousalSupportAnnual": estimated_spousal_support_annual,
         "estimatedSpousalSupportMonthly": round(
-            final_snapshot["spousalSupportAnnual"] / 12.0,
+            estimated_spousal_support_annual / 12.0,
             2,
         ),
         "childSupport": child_support,
+        "payorTaxableIncome": round(payor_taxable_income, 2),
+        "recipientTaxableIncome": round(recipient_taxable_income, 2),
+        "payorTax": round(payor_tax, 2),
+        "recipientTax": round(recipient_tax, 2),
         "ndiPayor": final_snapshot["ndiPayor"],
         "ndiRecipient": final_snapshot["ndiRecipient"],
         "recipientSharePercent": final_snapshot["recipientSharePercent"],

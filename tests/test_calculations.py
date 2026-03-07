@@ -40,6 +40,11 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["iterations"] > 1
     assert result["iterations"] < 300
     assert result["taxYear"] == 2025
+    assert result["payorTax"] > 0
+    assert result["payorTaxableIncome"] == approx(
+        result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
+        rel=1e-4,
+    )
     assert result["history"][-1]["recipientSharePercent"] == result["recipientSharePercent"]
 
 

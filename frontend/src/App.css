@@ -120,8 +120,25 @@
 
 .form-actions {
   display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 12px;
   margin-top: 18px;
+}
+
+.form-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-right: auto;
+  color: var(--text-default);
+  font-size: 0.92rem;
+  font-weight: 500;
+}
+
+.form-toggle input {
+  width: auto;
+  margin: 0;
 }
 
 .form-actions button {
@@ -226,6 +243,12 @@
   color: var(--danger);
 }
 
+.summary-expression {
+  margin: 18px 0 0;
+  color: var(--text-default);
+  font-weight: 500;
+}
+
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 1fr;
@@ -247,5 +270,10 @@
 
   .form-actions {
     flex-direction: column;
+    align-items: stretch;
+  }
+
+  .form-toggle {
+    margin-right: 0;
   }
 }

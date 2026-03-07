@@ -43,6 +43,9 @@ describe('App', () => {
           estimatedSpousalSupportMonthly: 1848.47,
           estimatedSpousalSupportAnnual: 22181.64,
           taxYear: payload.taxYear,
+          payorIncome: payload.payorIncome,
+          payorTaxableIncome: 222476.36,
+          payorTax: 31160.24,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -69,20 +72,38 @@ describe('App', () => {
     expect(
       await screen.findByText('Child support uses the bundled 2017 BC simplified federal table.'),
     ).toBeInTheDocument()
-    expect(await screen.findByText('Six and seven children use the federal six-or-more table.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Six and seven children use the federal six-or-more table.'),
+    ).toBeInTheDocument()
+    expect(await screen.findByRole('table', { name: 'Payor net income calculation' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
+    expect(await screen.findByText('Estimated tax')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
 
-  it('updates and restores the shared scenario form', async () => {
+  it('recalculates automatically and allows manual mode', async () => {
     render(<App />)
 
     await screen.findByRole('table', { name: 'Child support amounts' })
+    const initialFetchCount = globalThis.fetch.mock.calls.length
+
+    expect(screen.getByLabelText('Recalculate automatically')).toBeChecked()
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Children'), { target: { value: '7' } })
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
+    })
+
+    fireEvent.click(screen.getByLabelText('Recalculate automatically'))
+    expect(screen.getByLabelText('Recalculate automatically')).not.toBeChecked()
+    expect(screen.getByRole('button', { name: 'Recalculate' })).toBeEnabled()
+
     fireEvent.change(screen.getByLabelText('Tax year'), { target: { value: '2025' } })
     fireEvent.change(screen.getByLabelText('Target minimum %'), { target: { value: '41' } })
+    expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
     expect(screen.getByText('41% to 46% recipient NDI')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Restore example' }))
