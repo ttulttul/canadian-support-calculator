@@ -117,6 +117,14 @@ describe('App', () => {
     expect(
       await screen.findByText('Six and seven children use the federal six-or-more table.'),
     ).toBeInTheDocument()
+    expect(await screen.findByLabelText('Children information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Children under 6 information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Tax year information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Payor income information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Recipient income information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Target minimum percentage information')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Target maximum percentage information')).toBeInTheDocument()
+    expect(await screen.findAllByText('When the Gross Income Amount Needs Adjustment')).toHaveLength(2)
     expect(
       await screen.findByRole('table', { name: 'Net income calculation' }),
     ).toBeInTheDocument()

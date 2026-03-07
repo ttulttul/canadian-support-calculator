@@ -176,6 +176,12 @@
   font-weight: 500;
 }
 
+.form-label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .scenario-form input,
 .scenario-form select,
 .scenario-form button {
@@ -413,6 +419,12 @@
   pointer-events: none;
 }
 
+.info-icon--form .info-tooltip {
+  left: 0;
+  transform: translateY(4px);
+  max-width: min(340px, calc(100vw - 48px));
+}
+
 .info-tooltip {
   position: absolute;
   bottom: calc(100% + 10px);
@@ -447,6 +459,30 @@
   visibility: visible;
   transform: translateX(-50%) translateY(0);
   transition-delay: 500ms, 500ms, 500ms;
+}
+
+.info-icon--form:hover .info-tooltip,
+.info-icon--form:focus-visible .info-tooltip {
+  transform: translateY(0);
+}
+
+.info-tooltip p {
+  margin: 0;
+}
+
+.info-tooltip p + p,
+.info-tooltip p + ul,
+.info-tooltip ul + p {
+  margin-top: 8px;
+}
+
+.info-tooltip ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.info-tooltip li + li {
+  margin-top: 6px;
 }
 
 .info-icon:focus-visible {

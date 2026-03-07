@@ -526,6 +526,23 @@ function CurrencyCell({ value, signed = false }) {
   return <span className={className}>{content}</span>
 }
 
+function InfoTooltip({ label, tooltipClassName = '', children }) {
+  const className = ['info-icon', tooltipClassName].filter(Boolean).join(' ')
+
+  return (
+    <span className={className} tabIndex={0} aria-label={label}>
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+        <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
+        <path d="M12 10v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <circle cx="12" cy="7" r="1" fill="currentColor" />
+      </svg>
+      <span className="info-tooltip" role="tooltip">
+        {children}
+      </span>
+    </span>
+  )
+}
+
 function NdiConvergenceChart({ history }) {
   const chartHistory = history.filter(
     (entry) => Number.isFinite(entry.ndiPayor) && Number.isFinite(entry.ndiRecipient),
@@ -1074,21 +1091,12 @@ function App() {
           content: (
             <span className="info-label">
               <em>{label}</em>
-              <span
-                className="info-icon"
-                tabIndex={0}
-                aria-label="Equivalent before-tax income explanation"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" />
-                  <path d="M12 10v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  <circle cx="12" cy="7" r="1" fill="currentColor" />
-                </svg>
-                <span className="info-tooltip" role="tooltip">
+              <InfoTooltip label="Equivalent before-tax income explanation">
+                <>
                   The gross employment income that would leave the same after-tax income if there
                   were no child support, spousal support, or government benefits.
-                </span>
-              </span>
+                </>
+              </InfoTooltip>
             </span>
           ),
         }
@@ -1206,8 +1214,9 @@ function App() {
             <form className="scenario-form" onSubmit={handleSubmit}>
               <div className="form-grid">
                 <label>
-                  Jurisdiction
+                  <span className="form-label-text">Jurisdiction</span>
                   <select
+                    aria-label="Jurisdiction"
                     name="jurisdiction"
                     value={scenario.jurisdiction}
                     onChange={handleScenarioChange}
@@ -1217,8 +1226,14 @@ function App() {
                 </label>
 
                 <label>
-                  Children
+                  <span className="form-label-text">
+                    Children
+                    <InfoTooltip label="Children information" tooltipClassName="info-icon--form">
+                      <>Total number of children of the marriage for which child support is potentially payable.</>
+                    </InfoTooltip>
+                  </span>
                   <select
+                    aria-label="Children"
                     name="children"
                     value={scenario.children}
                     onChange={handleScenarioChange}
@@ -1232,8 +1247,14 @@ function App() {
                 </label>
 
                 <label>
-                  Children under 6
+                  <span className="form-label-text">
+                    Children under 6
+                    <InfoTooltip label="Children under 6 information" tooltipClassName="info-icon--form">
+                      <>Total number of children of the marriage currently under the age of 6.</>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Children under 6"
                     name="childrenUnderSix"
                     type="number"
                     min="0"
@@ -1245,8 +1266,17 @@ function App() {
                 </label>
 
                 <label>
-                  Tax year
+                  <span className="form-label-text">
+                    Tax year
+                    <InfoTooltip label="Tax year information" tooltipClassName="info-icon--form">
+                      <>
+                        Use the tax tables for this year in calculating the various tax deductions and
+                        credits that go into support calculations.
+                      </>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Tax year"
                     name="taxYear"
                     type="number"
                     min="1"
@@ -1257,8 +1287,36 @@ function App() {
                 </label>
 
                 <label>
-                  Payor income
+                  <span className="form-label-text">
+                    Payor income
+                    <InfoTooltip label="Payor income information" tooltipClassName="info-icon--form">
+                      <>
+                        <p>
+                          Enter the gross pre-tax income of the payor of support. Line <strong>15000</strong> of the
+                          most recent T1 Income Tax Return (or notice of assessment) is typically used. The Guidelines
+                          use gross income because net income allows discretionary deductions that could distort
+                          fairness, and the tables already account for taxes.
+                        </p>
+                        <p><strong>When the Gross Income Amount Needs Adjustment</strong></p>
+                        <ul>
+                          <li><strong>Fluctuating income:</strong> Average income over the last 3 years.</li>
+                          <li><strong>Income has changed since last filing:</strong> Use pay slips and current records.</li>
+                          <li><strong>One-time amounts (e.g., bonus):</strong> May include all or part.</li>
+                          <li><strong>Non-recurring capital/business losses:</strong> May be adjusted.</li>
+                          <li>
+                            <strong>Corporation director/officer/shareholder:</strong> Must include money available
+                            from the corporation (pre-tax corporate income or imputed salary for services).
+                          </li>
+                          <li>
+                            <strong>RRSP/pension income:</strong> Cannot deduct RRSP contributions; one-time
+                            withdrawals may be excluded case by case.
+                          </li>
+                        </ul>
+                      </>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Payor income"
                     name="payorIncome"
                     type="number"
                     min="0"
@@ -1269,8 +1327,36 @@ function App() {
                 </label>
 
                 <label>
-                  Recipient income
+                  <span className="form-label-text">
+                    Recipient income
+                    <InfoTooltip label="Recipient income information" tooltipClassName="info-icon--form">
+                      <>
+                        <p>
+                          Enter the gross pre-tax income of the recipient of support. Line <strong>15000</strong> of
+                          the most recent T1 Income Tax Return (or notice of assessment) is typically used. The
+                          Guidelines use gross income because net income allows discretionary deductions that could
+                          distort fairness, and the tables already account for taxes.
+                        </p>
+                        <p><strong>When the Gross Income Amount Needs Adjustment</strong></p>
+                        <ul>
+                          <li><strong>Fluctuating income:</strong> Average income over the last 3 years.</li>
+                          <li><strong>Income has changed since last filing:</strong> Use pay slips and current records.</li>
+                          <li><strong>One-time amounts (e.g., bonus):</strong> May include all or part.</li>
+                          <li><strong>Non-recurring capital/business losses:</strong> May be adjusted.</li>
+                          <li>
+                            <strong>Corporation director/officer/shareholder:</strong> Must include money available
+                            from the corporation (pre-tax corporate income or imputed salary for services).
+                          </li>
+                          <li>
+                            <strong>RRSP/pension income:</strong> Cannot deduct RRSP contributions; one-time
+                            withdrawals may be excluded case by case.
+                          </li>
+                        </ul>
+                      </>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Recipient income"
                     name="recipientIncome"
                     type="number"
                     min="0"
@@ -1281,8 +1367,18 @@ function App() {
                 </label>
 
                 <label>
-                  Target minimum %
+                  <span className="form-label-text">
+                    Target minimum %
+                    <InfoTooltip label="Target minimum percentage information" tooltipClassName="info-icon--form">
+                      <>
+                        This is the minimum share of total net disposable income (NDI) of the payor and recipient that
+                        the recipient will receive after child and spousal support and government taxes and credits.
+                        Typically, this value is 40%.
+                      </>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Target minimum %"
                     name="targetMinPercent"
                     type="number"
                     min="1"
@@ -1294,8 +1390,18 @@ function App() {
                 </label>
 
                 <label>
-                  Target maximum %
+                  <span className="form-label-text">
+                    Target maximum %
+                    <InfoTooltip label="Target maximum percentage information" tooltipClassName="info-icon--form">
+                      <>
+                        This is the maximum share of total net disposable income (NDI) of the payor and recipient that
+                        the recipient will receive after child and spousal support and government taxes and credits.
+                        Typically, this value is 46%.
+                      </>
+                    </InfoTooltip>
+                  </span>
                   <input
+                    aria-label="Target maximum %"
                     name="targetMaxPercent"
                     type="number"
                     min="1"
