@@ -125,6 +125,10 @@ def calculate_spousal_support_estimate(
     payor_taxable_income = max(payor_income - estimated_spousal_support_annual, 0.0)
     recipient_taxable_income = recipient_income + estimated_spousal_support_annual
     payor_tax_before_support_deduction = calculate_bc_tax_approx(payor_income, tax_year=tax_year)
+    recipient_tax_before_support_inclusion = calculate_bc_tax_approx(
+        recipient_income,
+        tax_year=tax_year,
+    )
     payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
     recipient_tax = calculate_bc_tax_approx(recipient_taxable_income, tax_year=tax_year)
     benefits = calculate_shared_custody_benefits(
@@ -135,6 +139,7 @@ def calculate_spousal_support_estimate(
         tax_year=tax_year,
     )
     payor_tax_deduction_benefit = max(payor_tax_before_support_deduction - payor_tax, 0.0)
+    recipient_tax_support_cost = max(recipient_tax - recipient_tax_before_support_inclusion, 0.0)
     return {
         "jurisdiction": "BC",
         "children": num_children,
@@ -157,7 +162,9 @@ def calculate_spousal_support_estimate(
         "payorTaxBeforeSupportDeduction": round(payor_tax_before_support_deduction, 2),
         "payorTax": round(payor_tax, 2),
         "payorTaxDeductionBenefit": round(payor_tax_deduction_benefit, 2),
+        "recipientTaxBeforeSupportInclusion": round(recipient_tax_before_support_inclusion, 2),
         "recipientTax": round(recipient_tax, 2),
+        "recipientTaxSupportCost": round(recipient_tax_support_cost, 2),
         "benefits": benefits,
         "ndiPayor": final_snapshot["ndiPayor"],
         "ndiRecipient": final_snapshot["ndiRecipient"],

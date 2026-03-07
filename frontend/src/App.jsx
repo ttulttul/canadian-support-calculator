@@ -289,24 +289,58 @@ function App() {
   const recipientGovernmentBenefits = spousalResult
     ? asNumber(recipientBenefitBreakdown.totalAnnual)
     : 0
-  const payorGrossMonthly = payorGrossIncome / 12
-  const payorTaxBeforeSupportDeductionMonthly = payorTaxBeforeSupportDeduction / 12
-  const payorTaxDeductionBenefitMonthly = payorTaxDeductionBenefit / 12
-  const childSupportMonthly = childSupportAnnual / 12
-  const spousalSupportMonthly = spousalSupportAnnual / 12
-  const payorGovernmentBenefitsMonthly = payorGovernmentBenefits / 12
-  const payorNetMonthly = payorNetIncome / 12
-  const payorNetIncomeRows = spousalResult
+  const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
+  const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
+  const recipientTaxBeforeSupportInclusion = spousalResult
+    ? asNumber(
+        spousalResult.recipientTaxBeforeSupportInclusion,
+        asNumber(spousalResult.recipientTax),
+      )
+    : 0
+  const recipientTaxSupportCost = spousalResult
+    ? asNumber(spousalResult.recipientTaxSupportCost)
+    : 0
+  const netIncomeRows = spousalResult
     ? [
-        ['Gross income', formatCurrency(payorGrossIncome)],
-        ['Child support', formatSignedCurrency(-childSupportAnnual)],
-        ['Spousal support (pre-tax)', formatSignedCurrency(-spousalSupportAnnual)],
-        ['Spousal support (tax deduction)', formatSignedCurrency(payorTaxDeductionBenefit)],
-        ['Income tax', formatSignedCurrency(-payorTaxBeforeSupportDeduction)],
-        ...(payorGovernmentBenefits > 0
-          ? [['Government benefits', formatSignedCurrency(payorGovernmentBenefits)]]
+        [
+          'Gross income',
+          formatCurrency(payorGrossIncome),
+          formatCurrency(recipientGrossIncome),
+        ],
+        [
+          'Child support',
+          formatSignedCurrency(-childSupportAnnual),
+          formatSignedCurrency(childSupportAnnual),
+        ],
+        [
+          'Spousal support (pre-tax)',
+          formatSignedCurrency(-spousalSupportAnnual),
+          formatSignedCurrency(spousalSupportAnnual),
+        ],
+        [
+          'Spousal support (tax deduction)',
+          formatSignedCurrency(payorTaxDeductionBenefit),
+          formatSignedCurrency(-recipientTaxSupportCost),
+        ],
+        [
+          'Income tax',
+          formatSignedCurrency(-payorTaxBeforeSupportDeduction),
+          formatSignedCurrency(-recipientTaxBeforeSupportInclusion),
+        ],
+        ...((payorGovernmentBenefits > 0 || recipientGovernmentBenefits > 0)
+          ? [
+              [
+                'Government benefits',
+                formatSignedCurrency(payorGovernmentBenefits),
+                formatSignedCurrency(recipientGovernmentBenefits),
+              ],
+            ]
           : []),
-        ['Estimated net income', formatCurrency(payorNetIncome)],
+        [
+          'Estimated net income',
+          formatCurrency(payorNetIncome),
+          formatCurrency(recipientNetIncome),
+        ],
       ]
     : []
   const benefitRows = spousalResult
@@ -528,43 +562,19 @@ function App() {
           <section className="panel-section">
             <div className="section-header">
               <div>
-                <h2>Payor net income</h2>
-                <p>Estimated annual income after tax, child support, and spousal support.</p>
+                <h2>Net Income</h2>
+                <p>Estimated annual income after tax, child support, spousal support, and benefits.</p>
               </div>
-              {spousalResult ? <strong>{formatCurrency(spousalResult.ndiPayor)}</strong> : null}
             </div>
 
             {spousalError ? <p className="error-text">{spousalError}</p> : null}
 
             {spousalResult ? (
-              <>
-                <p className="summary-expression">
-                  {formatCurrency(payorGrossIncome)} gross - {formatCurrency(childSupportAnnual)} child
-                  support - {formatCurrency(spousalSupportAnnual)} spousal support +{' '}
-                  {formatCurrency(payorTaxDeductionBenefit)} tax deduction -{' '}
-                  {formatCurrency(payorTaxBeforeSupportDeduction)} income tax
-                  {payorGovernmentBenefits > 0
-                    ? ` + ${formatCurrency(payorGovernmentBenefits)} benefits`
-                    : ''}{' '}
-                  = {formatCurrency(payorNetIncome)} net
-                </p>
-                <p className="summary-expression summary-expression--secondary">
-                  {formatCurrency(payorGrossMonthly)}/month gross -{' '}
-                  {formatCurrency(childSupportMonthly)}/month child support -{' '}
-                  {formatCurrency(spousalSupportMonthly)}/month spousal support +{' '}
-                  {formatCurrency(payorTaxDeductionBenefitMonthly)}/month tax deduction -{' '}
-                  {formatCurrency(payorTaxBeforeSupportDeductionMonthly)}/month income tax
-                  {payorGovernmentBenefits > 0
-                    ? ` + ${formatCurrency(payorGovernmentBenefitsMonthly)}/month benefits`
-                    : ''}{' '}
-                  = {formatCurrency(payorNetMonthly)}/month net
-                </p>
-                <ResultTable
-                  caption="Payor net income calculation"
-                  columns={['Component', 'Annual amount']}
-                  rows={payorNetIncomeRows}
-                />
-              </>
+              <ResultTable
+                caption="Net income calculation"
+                columns={['Component', 'Payor', 'Recipient']}
+                rows={netIncomeRows}
+              />
             ) : (
               <p className="empty-state">Results will appear here after the first calculation.</p>
             )}

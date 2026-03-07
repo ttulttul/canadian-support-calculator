@@ -78,4 +78,6 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert payload["childSupport"]["children"] == 2
     assert payload["payorTax"] > 0
     assert payload["payorTaxBeforeSupportDeduction"] > payload["payorTax"]
+    assert payload["recipientTax"] > payload["recipientTaxBeforeSupportInclusion"]
+    assert payload["recipientTaxSupportCost"] > 0
     assert payload["benefits"]["recipient"]["totalAnnual"] > 0

@@ -48,8 +48,11 @@ describe('App', () => {
           taxYear: payload.taxYear,
           childrenUnderSix: payload.childrenUnderSix,
           payorIncome: payload.payorIncome,
+          recipientIncome: payload.recipientIncome,
           payorTaxBeforeSupportDeduction: 86141.98,
           payorTaxDeductionBenefit: 10163.38,
+          recipientTaxBeforeSupportInclusion: 4200.11,
+          recipientTaxSupportCost: 3270.54,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -103,7 +106,7 @@ describe('App', () => {
       await screen.findByText('Six and seven children use the federal six-or-more table.'),
     ).toBeInTheDocument()
     expect(
-      await screen.findByRole('table', { name: 'Payor net income calculation' }),
+      await screen.findByRole('table', { name: 'Net income calculation' }),
     ).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Government benefits' })).toBeInTheDocument()
@@ -111,7 +114,8 @@ describe('App', () => {
     expect(await screen.findByText('-$33,396')).toBeInTheDocument()
     expect(await screen.findByText('+$10,163')).toBeInTheDocument()
     expect(await screen.findByText('-$86,142')).toBeInTheDocument()
-    expect(await screen.findByText(/month gross/)).toBeInTheDocument()
+    expect(await screen.findByText('-$3,271')).toBeInTheDocument()
+    expect(await screen.findByText('Net Income')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support (tax deduction)')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })
