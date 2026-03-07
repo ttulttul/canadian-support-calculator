@@ -12,6 +12,7 @@ def calculate_spousal_support_estimate(
     payor_income: float,
     recipient_income: float,
     num_children: int,
+    tax_year: int,
     target_range: tuple[float, float] = (0.40, 0.46),
     max_iterations: int = 300,
     step: float = 500.0,
@@ -50,8 +51,8 @@ def calculate_spousal_support_estimate(
     for iteration in range(max_iterations):
         current_payor_income = max(payor_income - spousal_support_annual, 0.0)
         current_recipient_income = recipient_income + spousal_support_annual
-        payor_tax = calculate_bc_tax_approx(current_payor_income)
-        recipient_tax = calculate_bc_tax_approx(current_recipient_income)
+        payor_tax = calculate_bc_tax_approx(current_payor_income, tax_year=tax_year)
+        recipient_tax = calculate_bc_tax_approx(current_recipient_income, tax_year=tax_year)
 
         ndi_payor = payor_income - payor_tax - spousal_support_annual - net_child_support_annual
         ndi_recipient = (
@@ -100,6 +101,7 @@ def calculate_spousal_support_estimate(
     return {
         "jurisdiction": "BC",
         "children": num_children,
+        "taxYear": tax_year,
         "payorIncome": payor_income,
         "recipientIncome": recipient_income,
         "targetRangePercent": {

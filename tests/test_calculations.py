@@ -10,7 +10,8 @@ def test_child_support_table_amount_matches_expected_example():
     table = load_default_child_support_table()
 
     assert table.amount(3, 200000) == approx(3582.0, rel=1e-4)
-    assert table.amount(3, 54078.54) == approx(1105.46, rel=1e-4)
+    assert table.amount(3, 54078.54) == approx(1106.0, rel=1e-4)
+    assert table.amount(7, 200000) == approx(5297.0, rel=1e-4)
 
 
 def test_child_support_breakdown_returns_direction_and_annual_values():
@@ -23,6 +24,7 @@ def test_child_support_breakdown_returns_direction_and_annual_values():
     assert result["direction"] == "payor_to_recipient"
     assert result["netMonthly"] == approx(2782.96, rel=1e-4)
     assert result["netAnnual"] == approx(33395.52, rel=1e-4)
+    assert result["recipientTableIncome"] == 30600
 
 
 def test_spousal_support_estimate_converges_inside_target_band():
@@ -30,18 +32,24 @@ def test_spousal_support_estimate_converges_inside_target_band():
         payor_income=244658,
         recipient_income=30600,
         num_children=2,
+        tax_year=2025,
     )
 
     assert 40 <= result["recipientSharePercent"] <= 46
     assert result["estimatedSpousalSupportAnnual"] > 0
     assert result["iterations"] > 1
     assert result["iterations"] < 300
+    assert result["taxYear"] == 2025
     assert result["history"][-1]["recipientSharePercent"] == result["recipientSharePercent"]
 
 
 def test_bc_tax_approx_is_progressive():
-    low_income_tax = calculate_bc_tax_approx(50_000)
-    high_income_tax = calculate_bc_tax_approx(200_000)
+    low_income_tax = calculate_bc_tax_approx(50_000, tax_year=2023)
+    high_income_tax = calculate_bc_tax_approx(200_000, tax_year=2023)
 
     assert low_income_tax == approx(10_144.73, rel=1e-4)
     assert high_income_tax > low_income_tax
+
+
+def test_tax_year_changes_indexed_tax_result():
+    assert calculate_bc_tax_approx(50_000, tax_year=2019) > calculate_bc_tax_approx(50_000, tax_year=2025)

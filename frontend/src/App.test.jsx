@@ -16,8 +16,10 @@ describe('App', () => {
       if (url === '/api/metadata') {
         return mockResponse({
           jurisdictions: [{ code: 'BC', name: 'British Columbia' }],
-          supportedChildren: [2, 3],
-          disclaimer: 'Bundled BC table and approximate BC tax model.',
+          supportedChildren: [1, 2, 3, 4, 5, 6, 7],
+          supportedChildrenNote: 'Six and seven children use the federal six-or-more table.',
+          defaultTaxYear: 2023,
+          disclaimer: 'Child support uses the bundled 2017 BC simplified federal table.',
         })
       }
 
@@ -40,6 +42,7 @@ describe('App', () => {
         return mockResponse({
           estimatedSpousalSupportMonthly: 1848.47,
           estimatedSpousalSupportAnnual: 22181.64,
+          taxYear: payload.taxYear,
           recipientSharePercent: payload.targetMinPercent,
           iterations: 27,
           ndiPayor: 113102.24,
@@ -63,7 +66,10 @@ describe('App', () => {
     render(<App />)
 
     expect(await screen.findByText('Canadian Support Calculator')).toBeInTheDocument()
-    expect(await screen.findByText('Bundled BC table and approximate BC tax model.')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Child support uses the bundled 2017 BC simplified federal table.'),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('Six and seven children use the federal six-or-more table.')).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
@@ -74,7 +80,8 @@ describe('App', () => {
 
     await screen.findByRole('table', { name: 'Child support amounts' })
 
-    fireEvent.change(screen.getByLabelText('Children'), { target: { value: '3' } })
+    fireEvent.change(screen.getByLabelText('Children'), { target: { value: '7' } })
+    fireEvent.change(screen.getByLabelText('Tax year'), { target: { value: '2025' } })
     fireEvent.change(screen.getByLabelText('Target minimum %'), { target: { value: '41' } })
     expect(screen.getByText('41% to 46% recipient NDI')).toBeInTheDocument()
 
@@ -84,6 +91,7 @@ describe('App', () => {
       expect(screen.getByLabelText('Children')).toHaveValue('2')
     })
 
+    expect(screen.getByLabelText('Tax year')).toHaveValue(2023)
     expect(screen.getByLabelText('Target minimum %')).toHaveValue(40)
     expect(screen.getByText('40% to 46% recipient NDI')).toBeInTheDocument()
   })

@@ -4,6 +4,7 @@ from flask import Blueprint, current_app, jsonify, request
 
 from .calculations import calculate_child_support_breakdown
 from .spousal_support import calculate_spousal_support_estimate
+from .tax import DEFAULT_TAX_YEAR
 
 logger = logging.getLogger(__name__)
 api_blueprint = Blueprint("api", __name__, url_prefix="/api")
@@ -40,6 +41,18 @@ def _require_integer(payload: dict, key: str) -> int:
     return number
 
 
+def _optional_tax_year(payload: dict) -> int:
+    value = payload.get("taxYear", DEFAULT_TAX_YEAR)
+    try:
+        tax_year = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError("'taxYear' must be an integer.") from error
+
+    if tax_year <= 0:
+        raise ValueError("'taxYear' must be greater than zero.")
+    return tax_year
+
+
 @api_blueprint.get("/health")
 def healthcheck():
     logger.debug("Healthcheck requested.")
@@ -54,10 +67,12 @@ def metadata():
         {
             "jurisdictions": [{"code": "BC", "name": "British Columbia"}],
             "supportedChildren": table.available_children(),
+            "supportedChildrenNote": "Six and seven children use the federal six-or-more table.",
             "defaultTargetRangePercent": {"min": 40, "max": 46},
+            "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
-                "Child support uses the bundled BC table from the provided notebook. "
-                "Spousal support is an estimate based on an approximate BC tax model."
+                "Child support uses the bundled 2017 BC simplified federal table. "
+                "Spousal support uses an indexed approximation of the 2023 combined BC tax model."
             ),
         }
     )
@@ -77,6 +92,7 @@ def child_support():
             recipient_income=_require_number(payload, "recipientIncome"),
             table=current_app.config["CHILD_SUPPORT_TABLE"],
         )
+        result["taxYear"] = _optional_tax_year(payload)
     except ValueError as error:
         logger.warning("Invalid child support request: %s", error)
         return jsonify({"error": str(error)}), 400
@@ -102,6 +118,7 @@ def spousal_support():
             payor_income=_require_number(payload, "payorIncome"),
             recipient_income=_require_number(payload, "recipientIncome"),
             num_children=_require_integer(payload, "children"),
+            tax_year=_optional_tax_year(payload),
             target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
             table=current_app.config["CHILD_SUPPORT_TABLE"],
         )

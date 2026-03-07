@@ -1,11 +1,13 @@
 # Canadian Support Calculator
 
-A React + Flask application for exploring child support and spousal support estimates using the bundled British Columbia child-support table from the provided notebook and a BC tax approximation for SSAG-style spousal-support modelling.
+A React + Flask application for exploring child support and spousal support estimates using bundled British Columbia 2017 simplified federal child-support tables and an indexed BC tax approximation for SSAG-style spousal-support modelling.
 
 ## Scope
 
-- Child support uses the bundled BC table data from the supplied CSV.
-- Spousal support is an estimate based on the notebook's net-disposable-income approach and an approximate BC tax model.
+- Child support supports 1 through 7 children.
+- Seven children use the federal "6 or more" table.
+- Child support uses bundled BC 2017 simplified federal tables and the official over-$150,000 formulas.
+- Spousal support is an estimate based on the notebook's net-disposable-income approach and an indexed approximate BC tax model with a user-selected tax year.
 - This is not legal advice.
 
 ## Local development

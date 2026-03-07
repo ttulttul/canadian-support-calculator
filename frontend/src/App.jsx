@@ -4,6 +4,7 @@ import './App.css'
 const defaultScenario = {
   jurisdiction: 'BC',
   children: '2',
+  taxYear: '2023',
   payorIncome: '244658',
   recipientIncome: '30600',
   targetMinPercent: '40',
@@ -122,6 +123,7 @@ function App() {
     const payload = {
       jurisdiction: activeScenario.jurisdiction,
       children: Number(activeScenario.children),
+      taxYear: Number(activeScenario.taxYear),
       payorIncome: Number(activeScenario.payorIncome),
       recipientIncome: Number(activeScenario.recipientIncome),
     }
@@ -244,6 +246,18 @@ function App() {
                 </label>
 
                 <label>
+                  Tax year
+                  <input
+                    name="taxYear"
+                    type="number"
+                    min="1"
+                    step="1"
+                    value={scenario.taxYear}
+                    onChange={handleScenarioChange}
+                  />
+                </label>
+
+                <label>
                   Payor income
                   <input
                     name="payorIncome"
@@ -318,8 +332,16 @@ function App() {
                   value: `${scenario.targetMinPercent}% to ${scenario.targetMaxPercent}% recipient NDI`,
                 },
                 {
+                  label: 'Tax year',
+                  value: scenario.taxYear,
+                },
+                {
                   label: 'Data note',
                   value: metadata?.disclaimer ?? 'Loading',
+                },
+                {
+                  label: 'Children note',
+                  value: metadata?.supportedChildrenNote ?? 'Loading',
                 },
               ]}
             />

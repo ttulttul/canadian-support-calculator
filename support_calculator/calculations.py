@@ -19,6 +19,8 @@ def calculate_child_support_breakdown(
         raise ValueError("Income values must be zero or greater.")
 
     active_table = table or load_default_child_support_table()
+    payor_table_income = active_table.rounded_income(payor_income)
+    recipient_table_income = active_table.rounded_income(recipient_income)
     payor_monthly = active_table.amount(num_children, payor_income)
     recipient_monthly = active_table.amount(num_children, recipient_income)
     net_monthly = round(payor_monthly - recipient_monthly, 2)
@@ -40,6 +42,8 @@ def calculate_child_support_breakdown(
         "children": num_children,
         "payorIncome": payor_income,
         "recipientIncome": recipient_income,
+        "payorTableIncome": payor_table_income,
+        "recipientTableIncome": recipient_table_income,
         "payorMonthly": payor_monthly,
         "recipientMonthly": recipient_monthly,
         "netMonthly": net_monthly,
