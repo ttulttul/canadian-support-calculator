@@ -365,6 +365,9 @@ describe('App', () => {
     await screen.findByRole('table', { name: 'Net income calculation' })
     const initialFetchCount = globalThis.fetch.mock.calls.length
 
+    fireEvent.change(screen.getByLabelText('Payor income'), {
+      target: { value: '244000' },
+    })
     fireEvent.click(screen.getByLabelText('Use different incomes for spousal support only'))
     fireEvent.change(screen.getByLabelText('Payor income for spousal support only'), {
       target: { value: '175000' },
@@ -379,7 +382,7 @@ describe('App', () => {
     )
     const latestSpousalPayload = JSON.parse(spousalSupportCalls.at(-1)[1].body)
 
-    expect(latestSpousalPayload.payorIncome).toBe(244658)
+    expect(latestSpousalPayload.payorIncome).toBe(244000)
     expect(latestSpousalPayload.recipientIncome).toBe(30600)
     expect(latestSpousalPayload.payorSpousalIncome).toBe(175000)
     expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()

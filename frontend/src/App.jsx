@@ -800,7 +800,12 @@ function App() {
   const [isCalculating, setIsCalculating] = useState(false)
   const [editingGrossIncome, setEditingGrossIncome] = useState(null)
   const requestSequence = useRef(0)
+  const scenarioRef = useRef(defaultScenario)
   const maxSupportedChildren = Math.max(...(metadata?.supportedChildren ?? [7]))
+
+  useEffect(() => {
+    scenarioRef.current = scenario
+  }, [scenario])
 
   useEffect(() => {
     let active = true
@@ -897,7 +902,8 @@ function App() {
   }, [autoRecalculate, metadata])
 
   function handleScenarioChange(event) {
-    const nextScenario = deriveNextScenario(scenario, event.target, maxSupportedChildren)
+    const nextScenario = deriveNextScenario(scenarioRef.current, event.target, maxSupportedChildren)
+    scenarioRef.current = nextScenario
     setScenario(nextScenario)
 
     if (autoRecalculate && metadata && scenarioHasRequiredFields(nextScenario)) {
@@ -912,6 +918,7 @@ function App() {
 
   function handleReset() {
     setEditingGrossIncome(null)
+    scenarioRef.current = defaultScenario
     setScenario(defaultScenario)
 
     if (autoRecalculate && metadata && scenarioHasRequiredFields(defaultScenario)) {
@@ -936,10 +943,11 @@ function App() {
     const normalizedDisplayValue = finalize ? Math.round(parsedDisplayValue) : parsedDisplayValue
     const annualValue = netIncomePeriod === 'monthly' ? normalizedDisplayValue * 12 : normalizedDisplayValue
     const nextScenario = {
-      ...scenario,
+      ...scenarioRef.current,
       [fieldName]: String(annualValue),
     }
 
+    scenarioRef.current = nextScenario
     setScenario(nextScenario)
     if (autoRecalculate && metadata && scenarioHasRequiredFields(nextScenario)) {
       void submitScenario(nextScenario)
@@ -1462,6 +1470,7 @@ function App() {
                         type="number"
                         min="0"
                         step="100"
+                        disabled={!scenario.useSeparateSpousalIncomes}
                         value={scenario.payorSpousalIncome}
                         onChange={handleScenarioChange}
                       />
@@ -1475,6 +1484,7 @@ function App() {
                         type="number"
                         min="0"
                         step="100"
+                        disabled={!scenario.useSeparateSpousalIncomes}
                         value={scenario.recipientSpousalIncome}
                         onChange={handleScenarioChange}
                       />
