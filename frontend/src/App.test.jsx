@@ -73,11 +73,14 @@ describe('App', () => {
     expect(
       await screen.findByText('Six and seven children use the federal six-or-more table.'),
     ).toBeInTheDocument()
-    expect(await screen.findByRole('table', { name: 'Payor net income calculation' })).toBeInTheDocument()
+    expect(
+      await screen.findByRole('table', { name: 'Payor net income calculation' }),
+    ).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Child support amounts' })).toBeInTheDocument()
     expect(await screen.findByRole('table', { name: 'Recent iterations' })).toBeInTheDocument()
-    expect(await screen.findByText('$75,978.60')).toBeInTheDocument()
-    expect(await screen.findByText('$222,476.36')).toBeInTheDocument()
+    expect(await screen.findByText('$75,979')).toBeInTheDocument()
+    expect(await screen.findByText('$222,476')).toBeInTheDocument()
+    expect(await screen.findByText(/month gross/)).toBeInTheDocument()
     expect(await screen.findByText('Estimated tax')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
   })

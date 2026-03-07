@@ -249,6 +249,12 @@
   font-weight: 500;
 }
 
+.summary-expression--secondary {
+  margin-top: 10px;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
 @media (max-width: 960px) {
   .workspace {
     grid-template-columns: 1fr;

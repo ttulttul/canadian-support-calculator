@@ -15,7 +15,7 @@ function formatCurrency(value) {
   return new Intl.NumberFormat('en-CA', {
     style: 'currency',
     currency: 'CAD',
-    maximumFractionDigits: 2,
+    maximumFractionDigits: 0,
   }).format(value ?? 0)
 }
 
@@ -239,6 +239,11 @@ function App() {
         payorGrossIncome - childSupportAnnual - spousalSupportAnnual - payorNetIncome,
       )
     : 0
+  const payorGrossMonthly = payorGrossIncome / 12
+  const payorTaxMonthly = payorTax / 12
+  const childSupportMonthly = childSupportAnnual / 12
+  const spousalSupportMonthly = spousalSupportAnnual / 12
+  const payorNetMonthly = payorNetIncome / 12
   const payorNetIncomeRows = spousalResult
     ? [
         ['Gross income', formatCurrency(payorGrossIncome)],
@@ -428,6 +433,13 @@ function App() {
                   {formatCurrency(childSupportAnnual)} child support -{' '}
                   {formatCurrency(spousalSupportAnnual)} spousal support ={' '}
                   {formatCurrency(payorNetIncome)} net
+                </p>
+                <p className="summary-expression summary-expression--secondary">
+                  {formatCurrency(payorGrossMonthly)}/month gross -{' '}
+                  {formatCurrency(payorTaxMonthly)}/month tax -{' '}
+                  {formatCurrency(childSupportMonthly)}/month child support -{' '}
+                  {formatCurrency(spousalSupportMonthly)}/month spousal support ={' '}
+                  {formatCurrency(payorNetMonthly)}/month net
                 </p>
                 <ResultTable
                   caption="Payor net income calculation"
