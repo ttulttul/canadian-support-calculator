@@ -256,8 +256,36 @@ function calculateEquivalentBeforeTaxIncome(targetNetIncome, taxYear) {
   return Number(upper.toFixed(2))
 }
 
+function sanitizeEditableIncomeInput(value) {
+  const normalizedValue = String(value).replace(/[^\d.]/g, '')
+  const [integerPart = '', ...decimalParts] = normalizedValue.split('.')
+  const sanitizedIntegerPart = integerPart.replace(/^0+(?=\d)/, '') || '0'
+
+  if (decimalParts.length === 0) {
+    return sanitizedIntegerPart
+  }
+
+  return `${sanitizedIntegerPart}.${decimalParts.join('')}`
+}
+
 function parseEditableIncome(value) {
-  return Number(String(value).replace(/[$,\s]/g, ''))
+  return Number.parseFloat(sanitizeEditableIncomeInput(value))
+}
+
+function formatEditableCurrency(value) {
+  const sanitizedValue = sanitizeEditableIncomeInput(value)
+  const [integerPart = '0', decimalPart] = sanitizedValue.split('.')
+  const formattedIntegerPart = Number(integerPart).toLocaleString('en-CA')
+
+  if (sanitizedValue.endsWith('.')) {
+    return `$${formattedIntegerPart}.`
+  }
+
+  if (decimalPart !== undefined) {
+    return `$${formattedIntegerPart}.${decimalPart}`
+  }
+
+  return `$${formattedIntegerPart}`
 }
 
 function scaleConfig(configs, taxYear) {
@@ -843,8 +871,30 @@ function App() {
     const displayValue = netIncomePeriod === 'monthly' ? annualValue / 12 : annualValue
     setEditingGrossIncome({
       fieldName,
-      value: String(Math.round(displayValue)),
+      rawValue: String(Math.round(displayValue)),
     })
+  }
+
+  function applyGrossIncomeEdit(fieldName, rawValue, finalize = false) {
+    const parsedDisplayValue = parseEditableIncome(rawValue)
+    if (!Number.isFinite(parsedDisplayValue) || parsedDisplayValue < 0) {
+      return
+    }
+
+    const normalizedDisplayValue = finalize ? Math.round(parsedDisplayValue) : parsedDisplayValue
+    const annualValue = netIncomePeriod === 'monthly' ? normalizedDisplayValue * 12 : normalizedDisplayValue
+    const nextScenario = {
+      ...scenario,
+      [fieldName]: String(annualValue),
+    }
+
+    setScenario(nextScenario)
+    if (!autoRecalculate) {
+      void submitScenario(nextScenario)
+    }
+    if (finalize) {
+      setEditingGrossIncome(null)
+    }
   }
 
   function commitGrossIncomeEdit() {
@@ -852,22 +902,7 @@ function App() {
       return
     }
 
-    const parsedValue = parseEditableIncome(editingGrossIncome.value)
-    if (!Number.isFinite(parsedValue) || parsedValue < 0) {
-      setEditingGrossIncome(null)
-      return
-    }
-
-    const annualValue = netIncomePeriod === 'monthly' ? parsedValue * 12 : parsedValue
-    const nextScenario = {
-      ...scenario,
-      [editingGrossIncome.fieldName]: String(Math.round(annualValue)),
-    }
-    setEditingGrossIncome(null)
-    setScenario(nextScenario)
-    if (!autoRecalculate) {
-      void submitScenario(nextScenario)
-    }
+    applyGrossIncomeEdit(editingGrossIncome.fieldName, editingGrossIncome.rawValue, true)
   }
 
   const supportedChildren = metadata?.supportedChildren ?? []
@@ -1072,14 +1107,16 @@ function App() {
               type="text"
               inputMode="numeric"
               aria-label="Edit payor gross income"
-              value={editingGrossIncome.value}
-              size={Math.max(editingGrossIncome.value.length, 1)}
+              value={formatEditableCurrency(editingGrossIncome.rawValue)}
+              size={Math.max(formatEditableCurrency(editingGrossIncome.rawValue).length, 2)}
               autoFocus
-              onChange={(event) =>
+              onChange={(event) => {
+                const rawValue = sanitizeEditableIncomeInput(event.target.value)
                 setEditingGrossIncome((current) =>
-                  current ? { ...current, value: event.target.value } : current,
+                  current ? { ...current, rawValue } : current,
                 )
-              }
+                applyGrossIncomeEdit('payorIncome', rawValue)
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()
@@ -1113,14 +1150,16 @@ function App() {
               type="text"
               inputMode="numeric"
               aria-label="Edit recipient gross income"
-              value={editingGrossIncome.value}
-              size={Math.max(editingGrossIncome.value.length, 1)}
+              value={formatEditableCurrency(editingGrossIncome.rawValue)}
+              size={Math.max(formatEditableCurrency(editingGrossIncome.rawValue).length, 2)}
               autoFocus
-              onChange={(event) =>
+              onChange={(event) => {
+                const rawValue = sanitizeEditableIncomeInput(event.target.value)
                 setEditingGrossIncome((current) =>
-                  current ? { ...current, value: event.target.value } : current,
+                  current ? { ...current, rawValue } : current,
                 )
-              }
+                applyGrossIncomeEdit('recipientIncome', rawValue)
+              }}
               onKeyDown={(event) => {
                 if (event.key === 'Enter') {
                   event.preventDefault()

@@ -249,17 +249,28 @@ describe('App', () => {
     const payorGrossIncomeEditor = await screen.findByLabelText('Edit payor gross income')
     expect(payorGrossIncomeEditor).toHaveClass('data-table__input')
     expect(payorGrossIncomeEditor).toHaveAttribute('type', 'text')
-    fireEvent.change(payorGrossIncomeEditor, { target: { value: '250000' } })
-    fireEvent.keyDown(payorGrossIncomeEditor, { key: 'Enter', code: 'Enter' })
+    fireEvent.change(payorGrossIncomeEditor, { target: { value: '$250000.6abc-' } })
+
+    expect(payorGrossIncomeEditor).toHaveValue('$250,000.6')
 
     await waitFor(() => {
       expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 2)
     })
 
     await waitFor(() => {
-      expect(screen.getByLabelText('Payor income')).toHaveValue(250000)
+      expect(screen.getByLabelText('Payor income')).toHaveValue(250000.6)
     })
 
-    expect(await screen.findByText('$250,000')).toBeInTheDocument()
+    fireEvent.keyDown(payorGrossIncomeEditor, { key: 'Enter', code: 'Enter' })
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBe(initialFetchCount + 4)
+    })
+
+    await waitFor(() => {
+      expect(screen.getByLabelText('Payor income')).toHaveValue(250001)
+    })
+
+    expect(await screen.findByText('$250,001')).toBeInTheDocument()
   })
 })
