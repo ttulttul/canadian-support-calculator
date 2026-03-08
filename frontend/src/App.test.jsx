@@ -353,6 +353,16 @@ describe('App', () => {
     const equivalentIncomeLabel = await screen.findByText('Equivalent before-tax income')
     expect(equivalentIncomeLabel.tagName).toBe('EM')
     expect(equivalentIncomeLabel.closest('td')).toHaveClass('data-table__informational')
+    expect(
+      await screen.findByText('Gross child and spousal support paid or received'),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('-$55,577')).toBeInTheDocument()
+    expect(await screen.findByText('+$55,577')).toBeInTheDocument()
+    expect(
+      await screen.findByText('Net child support and spousal support paid or received (after tax)'),
+    ).toBeInTheDocument()
+    expect(await screen.findByText('-$44,870')).toBeInTheDocument()
+    expect(await screen.findByText('+$50,939')).toBeInTheDocument()
     const equivalentIncomeInfoIcon = screen.getByLabelText('Equivalent before-tax income explanation')
     expect(equivalentIncomeInfoIcon).not.toHaveAttribute('title')
     expect(equivalentIncomeInfoIcon).toHaveAttribute('tabindex', '0')

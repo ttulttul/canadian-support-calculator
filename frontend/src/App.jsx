@@ -1213,6 +1213,9 @@ function App() {
         calculateEquivalentBeforeTaxIncome(recipientNetIncome, activeJurisdiction, activeTaxYear),
       )
     : 0
+  const grossSupportTransferAnnual = childSupportAnnual + spousalSupportAnnual
+  const netSupportTransferAnnualPayor = -grossSupportTransferAnnual + payorTaxDeductionBenefit
+  const netSupportTransferAnnualRecipient = grossSupportTransferAnnual - recipientTaxSupportCost
   const netIncomeDivisor = netIncomePeriod === 'monthly' ? 12 : 1
   const netIncomeColumnLabel = netIncomePeriod === 'monthly' ? 'Monthly amount' : 'Annual amount'
   const netIncomeRawRows = spousalResult
@@ -1232,6 +1235,16 @@ function App() {
           'Equivalent before-tax income',
           payorEquivalentBeforeTaxIncome,
           recipientEquivalentBeforeTaxIncome,
+        ],
+        [
+          'Gross child and spousal support paid or received',
+          -grossSupportTransferAnnual,
+          grossSupportTransferAnnual,
+        ],
+        [
+          'Net child support and spousal support paid or received (after tax)',
+          netSupportTransferAnnualPayor,
+          netSupportTransferAnnualRecipient,
         ],
       ]
     : []
