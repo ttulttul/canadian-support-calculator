@@ -443,6 +443,22 @@ describe('App', () => {
       within(screen.getByRole('table', { name: 'Net disposable income' })).getByText('$23,532'),
     ).toBeInTheDocument()
     expect(await screen.findAllByText('$0')).not.toHaveLength(0)
+
+    const fetchCountBeforeDisable = globalThis.fetch.mock.calls.length
+    fireEvent.click(screen.getByLabelText('Use different incomes for spousal support only'))
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(fetchCountBeforeDisable)
+    })
+
+    const finalSpousalPayload = JSON.parse(
+      globalThis.fetch.mock.calls
+        .filter(([url]) => url === '/api/calculate/spousal-support')
+        .at(-1)[1].body,
+    )
+    expect(finalSpousalPayload.payorSpousalIncome).toBeUndefined()
+    expect(finalSpousalPayload.recipientSpousalIncome).toBeUndefined()
+    expect(await screen.findAllByText('$244,000')).not.toHaveLength(0)
   })
 
   it('can force a fixed total gross support amount', async () => {
