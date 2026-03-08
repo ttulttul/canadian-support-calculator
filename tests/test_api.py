@@ -76,6 +76,7 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert payload["taxYear"] == 2025
     assert payload["childrenUnderSix"] == 1
     assert payload["childSupport"]["children"] == 2
+    assert payload["ndiChildSupport"]["children"] == 2
     assert payload["payorTax"] > 0
     assert payload["payorTaxBeforeSupportDeduction"] > payload["payorTax"]
     assert payload["recipientTax"] > payload["recipientTaxBeforeSupportInclusion"]
@@ -107,3 +108,5 @@ def test_spousal_support_route_accepts_separate_spousal_incomes(client):
     assert payload["recipientSpousalIncome"] == 45000
     assert payload["childSupport"]["payorIncome"] == 244658
     assert payload["childSupport"]["recipientIncome"] == 30600
+    assert payload["ndiChildSupport"]["payorIncome"] == 190000
+    assert payload["ndiChildSupport"]["recipientIncome"] == 45000

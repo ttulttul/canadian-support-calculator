@@ -47,6 +47,7 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["recipientTax"] > result["recipientTaxBeforeSupportInclusion"]
     assert result["recipientTaxSupportCost"] > 0
     assert result["benefits"]["recipient"]["totalAnnual"] > 0
+    assert result["ndiChildSupport"]["netAnnual"] == result["childSupport"]["netAnnual"]
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
         rel=1e-4,
@@ -71,6 +72,9 @@ def test_spousal_support_estimate_can_use_separate_spousal_incomes():
     assert result["recipientSpousalIncome"] == 45000
     assert result["childSupport"]["payorIncome"] == 244658
     assert result["childSupport"]["recipientIncome"] == 30600
+    assert result["ndiChildSupport"]["payorIncome"] == 190000
+    assert result["ndiChildSupport"]["recipientIncome"] == 45000
+    assert result["history"][-1]["netChildSupportAnnual"] == result["ndiChildSupport"]["netAnnual"]
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
         rel=1e-4,

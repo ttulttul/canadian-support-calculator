@@ -1717,7 +1717,12 @@ function App() {
                         rows={[
                           ['Payor', formatCurrency(payorNdi)],
                           ['Recipient', formatCurrency(recipientNdi)],
-                          ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
+                          [
+                            'Child support annual',
+                            formatCurrency(
+                              spousalResult.ndiChildSupport?.netAnnual ?? spousalResult.childSupport.netAnnual,
+                            ),
+                          ],
                           ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
                         ]}
                         numericColumnIndexes={[1]}

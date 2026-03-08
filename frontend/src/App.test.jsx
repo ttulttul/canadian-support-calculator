@@ -35,6 +35,9 @@ function buildSpousalResponse(payload) {
       childSupport: {
         netAnnual: 33395.52,
       },
+      ndiChildSupport: {
+        netAnnual: 23532.0,
+      },
       history: [
         {
           iteration: 16,
@@ -78,6 +81,9 @@ function buildSpousalResponse(payload) {
     ndiPayor: 113102.24,
     ndiRecipient: 75400.99,
     childSupport: {
+      netAnnual: 33395.52,
+    },
+    ndiChildSupport: {
       netAnnual: 33395.52,
     },
     history: [
@@ -396,6 +402,9 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
     expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
     expect(await screen.findByText('$175,000')).toBeInTheDocument()
+    expect(
+      within(screen.getByRole('table', { name: 'Net disposable income' })).getByText('$23,532'),
+    ).toBeInTheDocument()
     expect(await screen.findAllByText('$0')).not.toHaveLength(0)
   })
 })

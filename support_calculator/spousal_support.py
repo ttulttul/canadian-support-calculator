@@ -48,7 +48,14 @@ def calculate_spousal_support_estimate(
         recipient_income=recipient_income,
         table=active_table,
     )
-    net_child_support_annual = child_support["netAnnual"]
+    ndi_child_support = calculate_child_support_breakdown(
+        num_children=num_children,
+        payor_income=active_payor_spousal_income,
+        recipient_income=active_recipient_spousal_income,
+        table=active_table,
+    )
+    actual_net_child_support_annual = child_support["netAnnual"]
+    ndi_net_child_support_annual = ndi_child_support["netAnnual"]
     target_min_percent = target_min * 100.0
     target_max_percent = target_max * 100.0
     target_midpoint = (target_min_percent + target_max_percent) / 2.0
@@ -88,14 +95,14 @@ def calculate_spousal_support_estimate(
             active_payor_spousal_income
             - payor_tax
             - spousal_support_annual
-            - net_child_support_annual
+            - ndi_net_child_support_annual
             + payor_benefits
         )
         ndi_recipient = (
             active_recipient_spousal_income
             - recipient_tax
             + spousal_support_annual
-            + net_child_support_annual
+            + ndi_net_child_support_annual
             + recipient_benefits
         )
         total_ndi = ndi_payor + ndi_recipient
@@ -104,7 +111,7 @@ def calculate_spousal_support_estimate(
         snapshot = {
             "iteration": iteration,
             "spousalSupportAnnual": round(spousal_support_annual, 2),
-            "netChildSupportAnnual": round(net_child_support_annual, 2),
+            "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
             "payorBenefitsAnnual": round(payor_benefits, 2),
             "recipientBenefitsAnnual": round(recipient_benefits, 2),
             "ndiPayor": round(ndi_payor, 2),
@@ -166,14 +173,14 @@ def calculate_spousal_support_estimate(
         payor_income
         - payor_tax
         - estimated_spousal_support_annual
-        - net_child_support_annual
+        - actual_net_child_support_annual
         + benefits["payor"]["totalAnnual"]
     )
     actual_net_income_recipient = (
         recipient_income
         - recipient_tax
         + estimated_spousal_support_annual
-        + net_child_support_annual
+        + actual_net_child_support_annual
         + benefits["recipient"]["totalAnnual"]
     )
     return {
@@ -195,6 +202,7 @@ def calculate_spousal_support_estimate(
             2,
         ),
         "childSupport": child_support,
+        "ndiChildSupport": ndi_child_support,
         "payorTaxableIncome": round(payor_taxable_income, 2),
         "recipientTaxableIncome": round(recipient_taxable_income, 2),
         "payorTaxBeforeSupportDeduction": round(payor_tax_before_support_deduction, 2),
