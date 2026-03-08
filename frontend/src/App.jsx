@@ -984,10 +984,10 @@ function App() {
   const childSupportAnnual = spousalResult
     ? asNumber(spousalResult.childSupport?.netAnnual)
     : 0
-  const payorNetIncome = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
+  const payorNdi = spousalResult ? asNumber(spousalResult.ndiPayor) : 0
   const activeTaxYear = spousalResult ? asNumber(spousalResult.taxYear, baseTaxYear) : baseTaxYear
   const recipientGrossIncome = spousalResult ? asNumber(spousalResult.recipientIncome) : 0
-  const recipientNetIncome = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
+  const recipientNdi = spousalResult ? asNumber(spousalResult.ndiRecipient) : 0
   const benefitFallback = spousalResult
     ? calculateSharedCustodyBenefits(
         Math.max(payorGrossIncome - spousalSupportAnnual, 0),
@@ -1050,6 +1050,26 @@ function App() {
           ) - recipientTaxBeforeSupportInclusion,
           0,
         ),
+      )
+    : 0
+  const payorNetIncome = spousalResult
+    ? asNumber(
+        spousalResult.actualNetIncomePayor,
+        payorGrossIncome -
+          payorTaxAfterSupport -
+          spousalSupportAnnual -
+          childSupportAnnual +
+          payorBenefitBreakdown.totalAnnual,
+      )
+    : 0
+  const recipientNetIncome = spousalResult
+    ? asNumber(
+        spousalResult.actualNetIncomeRecipient,
+        recipientGrossIncome -
+          (recipientTaxBeforeSupportInclusion + recipientTaxSupportCost) +
+          spousalSupportAnnual +
+          childSupportAnnual +
+          recipientBenefitBreakdown.totalAnnual,
       )
     : 0
   const payorEquivalentBeforeTaxIncome = spousalResult
@@ -1695,8 +1715,8 @@ function App() {
                         caption="Net disposable income"
                         columns={['Party', 'NDI']}
                         rows={[
-                          ['Payor', formatCurrency(spousalResult.ndiPayor)],
-                          ['Recipient', formatCurrency(spousalResult.ndiRecipient)],
+                          ['Payor', formatCurrency(payorNdi)],
+                          ['Recipient', formatCurrency(recipientNdi)],
                           ['Child support annual', formatCurrency(spousalResult.childSupport.netAnnual)],
                           ['Recipient benefits annual', formatCurrency(recipientGovernmentBenefits)],
                         ]}

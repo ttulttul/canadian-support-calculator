@@ -162,6 +162,20 @@ def calculate_spousal_support_estimate(
     )
     payor_tax_deduction_benefit = max(payor_tax_before_support_deduction - payor_tax, 0.0)
     recipient_tax_support_cost = max(recipient_tax - recipient_tax_before_support_inclusion, 0.0)
+    actual_net_income_payor = (
+        payor_income
+        - payor_tax
+        - estimated_spousal_support_annual
+        - net_child_support_annual
+        + benefits["payor"]["totalAnnual"]
+    )
+    actual_net_income_recipient = (
+        recipient_income
+        - recipient_tax
+        + estimated_spousal_support_annual
+        + net_child_support_annual
+        + benefits["recipient"]["totalAnnual"]
+    )
     return {
         "jurisdiction": "BC",
         "children": num_children,
@@ -190,6 +204,8 @@ def calculate_spousal_support_estimate(
         "recipientTax": round(recipient_tax, 2),
         "recipientTaxSupportCost": round(recipient_tax_support_cost, 2),
         "benefits": benefits,
+        "actualNetIncomePayor": round(actual_net_income_payor, 2),
+        "actualNetIncomeRecipient": round(actual_net_income_recipient, 2),
         "ndiPayor": final_snapshot["ndiPayor"],
         "ndiRecipient": final_snapshot["ndiRecipient"],
         "recipientSharePercent": final_snapshot["recipientSharePercent"],

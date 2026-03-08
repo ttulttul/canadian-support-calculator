@@ -87,6 +87,22 @@ def test_spousal_support_estimate_can_use_separate_spousal_incomes():
         tax_year=2025,
     )
     assert result["benefits"] == expected_benefits
+    assert result["actualNetIncomePayor"] == approx(
+        result["payorIncome"]
+        - result["payorTax"]
+        - result["estimatedSpousalSupportAnnual"]
+        - result["childSupport"]["netAnnual"]
+        + result["benefits"]["payor"]["totalAnnual"],
+        rel=1e-4,
+    )
+    assert result["actualNetIncomeRecipient"] == approx(
+        result["recipientIncome"]
+        - result["recipientTax"]
+        + result["estimatedSpousalSupportAnnual"]
+        + result["childSupport"]["netAnnual"]
+        + result["benefits"]["recipient"]["totalAnnual"],
+        rel=1e-4,
+    )
 
 
 def test_shared_custody_benefits_include_low_income_credits():

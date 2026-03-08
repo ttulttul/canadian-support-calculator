@@ -28,6 +28,8 @@ function buildSpousalResponse(payload) {
       recipientSpousalIncome,
       recipientSharePercent: 41.83,
       iterations: 19,
+      actualNetIncomePayor: 124364.43,
+      actualNetIncomeRecipient: 67325.54,
       ndiPayor: 93248.4,
       ndiRecipient: 67212.66,
       childSupport: {
@@ -71,6 +73,8 @@ function buildSpousalResponse(payload) {
     recipientSpousalIncome,
     recipientSharePercent: payload.targetMinPercent,
     iterations: 27,
+    actualNetIncomePayor: 113102.24,
+    actualNetIncomeRecipient: 75400.99,
     ndiPayor: 113102.24,
     ndiRecipient: 75400.99,
     childSupport: {
@@ -387,6 +391,8 @@ describe('App', () => {
     expect(latestSpousalPayload.payorSpousalIncome).toBe(175000)
     expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()
     expect(within(netIncomeTable).getByText('$244,000')).toBeInTheDocument()
+    expect(within(netIncomeTable).getByText('$124,364')).toBeInTheDocument()
+    expect(within(netIncomeTable).queryByText('$93,248')).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
     expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
     expect(await screen.findByText('$175,000')).toBeInTheDocument()
