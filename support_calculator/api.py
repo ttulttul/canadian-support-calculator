@@ -10,6 +10,39 @@ from .tax import DEFAULT_TAX_YEAR
 logger = logging.getLogger(__name__)
 api_blueprint = Blueprint("api", __name__, url_prefix="/api")
 
+CALCULATION_SOURCE_REFERENCES = [
+    {
+        "key": "childSupportTables",
+        "label": "Justice Canada 2017 Federal Child Support Tables",
+        "url": "https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2017/index.html",
+    },
+    {
+        "key": "taxRates",
+        "label": "CRA progressive tax rates and income brackets",
+        "url": "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/learn-progressive-tax-rates-income-brackets.html",
+    },
+    {
+        "key": "canadaChildBenefitAnnual",
+        "label": "Canada child benefit overview",
+        "url": "https://www.canada.ca/en/revenue-agency/services/child-family-benefits/canada-child-benefit-overview.html",
+    },
+    {
+        "key": "gstHstCreditAnnual",
+        "label": "GST/HST credit eligibility",
+        "url": "https://www.canada.ca/en/revenue-agency/services/child-family-benefits/gsthstc-eligibility.html",
+    },
+    {
+        "key": "bcFamilyBenefitAnnual",
+        "label": "B.C. family benefit",
+        "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/bc-family-benefit",
+    },
+    {
+        "key": "bcClimateActionCreditAnnual",
+        "label": "B.C. climate action tax credit",
+        "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/climate-action",
+    },
+]
+
 
 def _require_json_object() -> dict:
     payload = request.get_json(silent=True)
@@ -100,6 +133,7 @@ def metadata():
             ],
             "supportedChildren": registry.supported_children(),
             "supportedChildrenNote": "Six and seven children use the federal six-or-more table.",
+            "sourceReferences": CALCULATION_SOURCE_REFERENCES,
             "defaultTargetRangePercent": {"min": 40, "max": 46},
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (

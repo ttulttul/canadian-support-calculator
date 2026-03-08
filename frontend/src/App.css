@@ -159,6 +159,23 @@
   color: var(--text-muted);
 }
 
+.reference-list {
+  margin: 14px 0 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.reference-list a {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.reference-list a:hover,
+.reference-list a:focus-visible {
+  text-decoration: underline;
+}
+
 .scenario-form {
   margin-top: 16px;
 }

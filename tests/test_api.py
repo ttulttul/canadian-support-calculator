@@ -29,6 +29,8 @@ def test_metadata(client):
     ]
     assert payload["spousalSupportJurisdictions"] == payload["jurisdictions"]
     assert payload["supportedChildren"] == [1, 2, 3, 4, 5, 6, 7]
+    assert payload["sourceReferences"][0]["key"] == "childSupportTables"
+    assert payload["sourceReferences"][1]["key"] == "taxRates"
     assert payload["defaultTaxYear"] == 2023
     assert "shared-custody" in payload["benefitAssumptions"]
     assert "non-Quebec" in payload["spousalSupportAssumptions"]

@@ -270,6 +270,33 @@ describe('App', () => {
           ],
           supportedChildren: [1, 2, 3, 4, 5, 6, 7],
           supportedChildrenNote: 'Six and seven children use the federal six-or-more table.',
+          sourceReferences: [
+            {
+              key: 'childSupportTables',
+              label: 'Justice Canada 2017 Federal Child Support Tables',
+              url: 'https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2017/index.html',
+            },
+            {
+              key: 'taxRates',
+              label: 'CRA progressive tax rates and income brackets',
+              url: 'https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/learn-progressive-tax-rates-income-brackets.html',
+            },
+            {
+              key: 'canadaChildBenefitAnnual',
+              label: 'Canada child benefit overview',
+              url: 'https://www.canada.ca/en/revenue-agency/services/child-family-benefits/canada-child-benefit-overview.html',
+            },
+            {
+              key: 'gstHstCreditAnnual',
+              label: 'GST/HST credit eligibility',
+              url: 'https://www.canada.ca/en/revenue-agency/services/child-family-benefits/gsthstc-eligibility.html',
+            },
+            {
+              key: 'bcFamilyBenefitAnnual',
+              label: 'B.C. family benefit',
+              url: 'https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/bc-family-benefit',
+            },
+          ],
           defaultTaxYear: 2023,
           disclaimer:
             'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support uses indexed 2023 federal and provincial marginal tax brackets by jurisdiction, plus annualized shared-custody family benefits.',
@@ -342,7 +369,7 @@ describe('App', () => {
     ).toBeInTheDocument()
     expect(await screen.findByText('Canada child benefit')).toBeInTheDocument()
     expect(await screen.findByText('GST/HST credit')).toBeInTheDocument()
-    expect(await screen.findByText('B.C. family benefit')).toBeInTheDocument()
+    expect(await screen.findAllByText('B.C. family benefit')).not.toHaveLength(0)
     expect(await screen.findByText('-$33,396')).toBeInTheDocument()
     expect(await screen.findByText('+$10,707')).toBeInTheDocument()
     expect(await screen.findByText('-$86,685')).toBeInTheDocument()
@@ -427,6 +454,20 @@ describe('App', () => {
     expect(await screen.findByText('$244,658')).toBeInTheDocument()
     expect(await screen.findByText('Spousal support calculations')).toBeInTheDocument()
     expect(screen.getByText('Payor to recipient')).toBeInTheDocument()
+    expect(await screen.findByText('Source references')).toBeInTheDocument()
+    expect(
+      screen.getByRole('link', { name: 'Justice Canada 2017 Federal Child Support Tables' }),
+    ).toHaveAttribute(
+      'href',
+      'https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2017/index.html',
+    )
+    expect(
+      screen.getByRole('link', { name: 'CRA progressive tax rates and income brackets' }),
+    ).toHaveAttribute(
+      'href',
+      'https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/learn-progressive-tax-rates-income-brackets.html',
+    )
+    expect(screen.getByRole('link', { name: 'B.C. family benefit' })).toBeInTheDocument()
   })
 
   it('recalculates automatically and allows manual mode', async () => {

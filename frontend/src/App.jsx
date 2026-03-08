@@ -1138,6 +1138,16 @@ function App() {
       totalAnnual: 0,
     }
   const benefitLineItems = spousalResult?.benefits?.lineItems ?? benefitFallback?.lineItems ?? []
+  const benefitReferenceKeys = new Set(benefitLineItems.map(({ key }) => key))
+  const detailSourceReferences = (metadata?.sourceReferences ?? []).filter((reference) => {
+    if (reference.key === 'childSupportTables') {
+      return Boolean(childResult)
+    }
+    if (reference.key === 'taxRates') {
+      return Boolean(spousalResult)
+    }
+    return benefitReferenceKeys.has(reference.key)
+  })
   const payorTaxAfterSupport = spousalResult
     ? asNumber(
         spousalResult.payorTax,
@@ -1872,6 +1882,24 @@ function App() {
                         numericColumnIndexes={[1]}
                       />
                       <NdiConvergenceChart history={spousalResult.history} />
+                    </section>
+                  ) : null}
+
+                  {detailSourceReferences.length > 0 ? (
+                    <section className="details-block">
+                      <div className="details-block__header">
+                        <h3>Source references</h3>
+                      </div>
+                      <p>Official source material used for the calculations shown in this drawer.</p>
+                      <ul className="reference-list">
+                        {detailSourceReferences.map((reference) => (
+                          <li key={reference.key}>
+                            <a href={reference.url} target="_blank" rel="noreferrer">
+                              {reference.label}
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
                     </section>
                   ) : null}
                 </div>
