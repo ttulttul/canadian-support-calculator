@@ -1,0 +1,24 @@
+appId: com.ttulttul.canadian-support-calculator
+productName: Canadian Support Calculator
+directories:
+  buildResources: build
+  output: dist/electron
+files:
+  - electron/**/*
+  - package.json
+extraResources:
+  - from: dist/backend-bundle
+    to: backend
+mac:
+  artifactName: ${productName}-${version}-${arch}.${ext}
+  category: public.app-category.finance
+  hardenedRuntime: true
+  gatekeeperAssess: false
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.inherit.plist
+  icon: build/icon.icns
+publish:
+  provider: github
+  owner: ttulttul
+  repo: canadian-support-calculator
+afterSign: scripts/notarize.cjs

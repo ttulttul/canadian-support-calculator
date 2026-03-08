@@ -1,0 +1,33 @@
+{
+  "name": "canadian-support-calculator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.mjs",
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "backend:test": "uv run pytest",
+    "frontend:dev": "npm run dev --workspace frontend -- --host 127.0.0.1 --port 5173",
+    "frontend:build": "npm run build --workspace frontend",
+    "frontend:test": "npm run test --workspace frontend",
+    "desktop:test": "node --test electron/backend-runtime.test.mjs electron/updater.test.mjs",
+    "backend:build:desktop": "uv run python scripts/build_desktop_backend.py",
+    "desktop:dev": "concurrently -k -n frontend,electron -c green,magenta \"npm run frontend:dev\" \"wait-on http://127.0.0.1:5173 && CSC_DESKTOP_DEV=1 electron .\"",
+    "desktop:build": "npm run frontend:build && npm run backend:build:desktop && electron-builder --mac dmg zip --universal --publish never",
+    "release:prepare": "node scripts/prepare_release.mjs",
+    "release:push": "node scripts/push_release.mjs"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.3"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^3.1.1",
+    "concurrently": "^9.2.1",
+    "electron": "^40.8.0",
+    "electron-builder": "^26.8.1",
+    "semver": "^7.7.4",
+    "wait-on": "^9.0.4"
+  }
+}

@@ -267,6 +267,15 @@ function formatSignedCurrency(value) {
   return formatCurrency(0)
 }
 
+function getApiBaseUrl() {
+  return globalThis.window?.electronAPI?.apiBaseUrl ?? ''
+}
+
+function resolveApiUrl(path) {
+  const baseUrl = getApiBaseUrl()
+  return baseUrl ? `${baseUrl}${path}` : path
+}
+
 function asNumber(value, fallback = 0) {
   return Number.isFinite(Number(value)) ? Number(value) : fallback
 }
@@ -642,7 +651,7 @@ function calculateSharedCustodyBenefits(
 }
 
 async function postJson(url, payload) {
-  const response = await fetch(url, {
+  const response = await fetch(resolveApiUrl(url), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -659,7 +668,7 @@ async function postJson(url, payload) {
 }
 
 async function postPdf(url, payload) {
-  const response = await fetch(url, {
+  const response = await fetch(resolveApiUrl(url), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -960,7 +969,7 @@ function App() {
     let active = true
 
     async function loadMetadata() {
-      const response = await fetch('/api/metadata')
+      const response = await fetch(resolveApiUrl('/api/metadata'))
       const data = await response.json()
       if (!response.ok) {
         throw new Error(data.error ?? 'Unable to load calculator metadata.')

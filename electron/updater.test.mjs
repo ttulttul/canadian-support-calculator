@@ -1,0 +1,57 @@
+import test from 'node:test'
+import assert from 'node:assert/strict'
+
+import { checkForUpdates, shouldEnableAutoUpdates, wireAutoUpdater } from './updater.mjs'
+
+test('shouldEnableAutoUpdates only allows packaged macOS builds', () => {
+  assert.equal(shouldEnableAutoUpdates({ isPackaged: true, platform: 'darwin' }), true)
+  assert.equal(shouldEnableAutoUpdates({ isPackaged: false, platform: 'darwin' }), false)
+  assert.equal(shouldEnableAutoUpdates({ isPackaged: true, platform: 'linux' }), false)
+})
+
+test('checkForUpdates skips updater calls when disabled', async () => {
+  let called = false
+  const result = await checkForUpdates({
+    enabled: false,
+    autoUpdaterImpl: {
+      checkForUpdates: async () => {
+        called = true
+      },
+    },
+    log: { info() {} },
+  })
+
+  assert.equal(result, false)
+  assert.equal(called, false)
+})
+
+test('wireAutoUpdater prompts before installing a downloaded update', async () => {
+  const listeners = new Map()
+  let quitAndInstallCalled = false
+  const updater = {
+    autoDownload: false,
+    autoInstallOnAppQuit: true,
+    on(eventName, handler) {
+      listeners.set(eventName, handler)
+    },
+    quitAndInstall() {
+      quitAndInstallCalled = true
+    },
+  }
+
+  wireAutoUpdater({
+    autoUpdaterImpl: updater,
+    dialogImpl: {
+      async showMessageBox() {
+        return { response: 0 }
+      },
+    },
+    log: { info() {}, error() {} },
+  })
+
+  await listeners.get('update-downloaded')({ version: '1.2.3' })
+
+  assert.equal(updater.autoDownload, true)
+  assert.equal(updater.autoInstallOnAppQuit, false)
+  assert.equal(quitAndInstallCalled, true)
+})

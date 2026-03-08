@@ -3,5 +3,10 @@ __pycache__/
 .pytest_cache/
 *.pyc
 *.egg-info/
+node_modules/
+dist/
+release/
+build/icon.iconset/
+build/support_calculator_backend/
 frontend/node_modules/
 frontend/dist/

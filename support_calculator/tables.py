@@ -8,6 +8,7 @@ from .jurisdictions import (
     JURISDICTIONS_BY_CODE,
     NON_QUEBEC_CHILD_SUPPORT_JURISDICTIONS,
 )
+from .runtime_paths import data_dir
 
 logger = logging.getLogger(__name__)
 
@@ -185,10 +186,10 @@ def load_child_support_registry(
 
 @lru_cache(maxsize=1)
 def load_default_child_support_registry() -> ChildSupportTableRegistry:
-    data_dir = Path(__file__).resolve().parent / "data"
+    default_data_dir = data_dir()
     return load_child_support_registry(
-        data_dir / "child_support_lookup_2017.csv",
-        data_dir / "child_support_over_150k_2017.csv",
+        default_data_dir / "child_support_lookup_2017.csv",
+        default_data_dir / "child_support_over_150k_2017.csv",
     )
 
 

@@ -4,6 +4,7 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, send_from_directory
 
 from .api import api_blueprint
+from .runtime_paths import frontend_dist_dir
 from .tables import load_default_child_support_registry, load_default_child_support_table
 
 logger = logging.getLogger(__name__)
@@ -16,23 +17,31 @@ def create_app(config: dict | None = None) -> Flask:
             format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
         )
 
-    frontend_dist = Path(__file__).resolve().parent.parent / "frontend" / "dist"
     app = Flask(__name__)
     app.config["JSON_SORT_KEYS"] = False
-    app.config["FRONTEND_DIST"] = frontend_dist
-    app.config["CHILD_SUPPORT_TABLES"] = load_default_child_support_registry()
-    app.config["CHILD_SUPPORT_TABLE"] = load_default_child_support_table()
 
     if config:
         app.config.update(config)
+
+    if "FRONTEND_DIST" in app.config:
+        app.config["FRONTEND_DIST"] = Path(app.config["FRONTEND_DIST"])
+    else:
+        app.config["FRONTEND_DIST"] = frontend_dist_dir()
+
+    if "CHILD_SUPPORT_TABLES" not in app.config:
+        app.config["CHILD_SUPPORT_TABLES"] = load_default_child_support_registry()
+
+    if "CHILD_SUPPORT_TABLE" not in app.config:
+        app.config["CHILD_SUPPORT_TABLE"] = load_default_child_support_table()
 
     app.register_blueprint(api_blueprint)
 
     @app.get("/")
     def serve_index():
-        if frontend_dist.exists():
-            logger.info("Serving frontend index from %s", frontend_dist)
-            return send_from_directory(frontend_dist, "index.html")
+        active_frontend_dist = Path(app.config["FRONTEND_DIST"])
+        if active_frontend_dist.exists():
+            logger.info("Serving frontend index from %s", active_frontend_dist)
+            return send_from_directory(active_frontend_dist, "index.html")
 
         logger.info("Frontend build not found; returning API status payload.")
         return jsonify(
@@ -48,13 +57,14 @@ def create_app(config: dict | None = None) -> Flask:
         if path.startswith("api/"):
             abort(404)
 
-        if not frontend_dist.exists():
+        active_frontend_dist = Path(app.config["FRONTEND_DIST"])
+        if not active_frontend_dist.exists():
             abort(404)
 
-        candidate = frontend_dist / path
+        candidate = active_frontend_dist / path
         if candidate.is_file():
-            return send_from_directory(frontend_dist, path)
+            return send_from_directory(active_frontend_dist, path)
 
-        return send_from_directory(frontend_dist, "index.html")
+        return send_from_directory(active_frontend_dist, "index.html")
 
     return app
