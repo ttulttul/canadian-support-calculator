@@ -14,6 +14,7 @@ mac:
   category: public.app-category.finance
   hardenedRuntime: true
   gatekeeperAssess: false
+  x64ArchFiles: "{Contents/Resources/backend/**/*,Contents/Resources/backend/**/.dylibs/**/*}"
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.inherit.plist
   icon: build/icon.icns

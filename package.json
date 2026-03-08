@@ -2,6 +2,8 @@
   "name": "canadian-support-calculator",
   "version": "0.1.0",
   "private": true,
+  "description": "Electron desktop packaging and release tooling for the Canadian Support Calculator.",
+  "author": "ttulttul",
   "type": "module",
   "main": "electron/main.mjs",
   "workspaces": [
