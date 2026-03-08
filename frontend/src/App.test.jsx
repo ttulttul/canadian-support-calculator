@@ -362,7 +362,7 @@ describe('App', () => {
   it('uses alternate spousal-only incomes when the drawer is enabled', async () => {
     render(<App />)
 
-    await screen.findByRole('table', { name: 'Net income calculation' })
+    const netIncomeTable = await screen.findByRole('table', { name: 'Net income calculation' })
     const initialFetchCount = globalThis.fetch.mock.calls.length
 
     fireEvent.change(screen.getByLabelText('Payor income'), {
@@ -386,9 +386,10 @@ describe('App', () => {
     expect(latestSpousalPayload.recipientIncome).toBe(30600)
     expect(latestSpousalPayload.payorSpousalIncome).toBe(175000)
     expect(latestSpousalPayload.recipientSpousalIncome).toBeUndefined()
+    expect(within(netIncomeTable).getByText('$244,000')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
     expect(await screen.findByText('Payor income used for spousal support')).toBeInTheDocument()
-    expect(await screen.findAllByText('$175,000')).toHaveLength(2)
+    expect(await screen.findByText('$175,000')).toBeInTheDocument()
     expect(await screen.findAllByText('$0')).not.toHaveLength(0)
   })
 })

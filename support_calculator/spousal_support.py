@@ -66,13 +66,17 @@ def calculate_spousal_support_estimate(
     history: list[dict] = []
 
     for iteration in range(max_iterations):
-        current_payor_income = max(active_payor_spousal_income - spousal_support_annual, 0.0)
-        current_recipient_income = active_recipient_spousal_income + spousal_support_annual
-        payor_tax = calculate_bc_tax_approx(current_payor_income, tax_year=tax_year)
-        recipient_tax = calculate_bc_tax_approx(current_recipient_income, tax_year=tax_year)
+        current_payor_taxable_income = max(payor_income - spousal_support_annual, 0.0)
+        current_recipient_taxable_income = recipient_income + spousal_support_annual
+        payor_tax = calculate_bc_tax_approx(
+            current_payor_taxable_income, tax_year=tax_year
+        )
+        recipient_tax = calculate_bc_tax_approx(
+            current_recipient_taxable_income, tax_year=tax_year
+        )
         benefits = calculate_shared_custody_benefits(
-            payor_adjusted_family_net_income=current_payor_income,
-            recipient_adjusted_family_net_income=current_recipient_income,
+            payor_adjusted_family_net_income=current_payor_taxable_income,
+            recipient_adjusted_family_net_income=current_recipient_taxable_income,
             num_children=num_children,
             children_under_six=children_under_six,
             tax_year=tax_year,
@@ -135,16 +139,16 @@ def calculate_spousal_support_estimate(
     final_snapshot = history[-1]
     estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
     payor_taxable_income = max(
-        active_payor_spousal_income - estimated_spousal_support_annual,
+        payor_income - estimated_spousal_support_annual,
         0.0,
     )
-    recipient_taxable_income = active_recipient_spousal_income + estimated_spousal_support_annual
+    recipient_taxable_income = recipient_income + estimated_spousal_support_annual
     payor_tax_before_support_deduction = calculate_bc_tax_approx(
-        active_payor_spousal_income,
+        payor_income,
         tax_year=tax_year,
     )
     recipient_tax_before_support_inclusion = calculate_bc_tax_approx(
-        active_recipient_spousal_income,
+        recipient_income,
         tax_year=tax_year,
     )
     payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
