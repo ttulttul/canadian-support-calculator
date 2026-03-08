@@ -1,7 +1,7 @@
 import logging
 import os
 
-from . import create_app
+from support_calculator import create_app
 
 logger = logging.getLogger(__name__)
 
