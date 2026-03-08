@@ -1,47 +1,17 @@
 import logging
+from io import BytesIO
 
-from flask import Blueprint, current_app, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, send_file
 
 from .calculations import calculate_child_support_breakdown
 from .jurisdictions import spousal_support_jurisdictions
+from .pdf_report import render_support_report_pdf
+from .source_references import CALCULATION_SOURCE_REFERENCES, filter_source_references
 from .spousal_support import calculate_spousal_support_estimate
 from .tax import DEFAULT_TAX_YEAR
 
 logger = logging.getLogger(__name__)
 api_blueprint = Blueprint("api", __name__, url_prefix="/api")
-
-CALCULATION_SOURCE_REFERENCES = [
-    {
-        "key": "childSupportTables",
-        "label": "Justice Canada 2017 Federal Child Support Tables",
-        "url": "https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2017/index.html",
-    },
-    {
-        "key": "taxRates",
-        "label": "CRA progressive tax rates and income brackets",
-        "url": "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/learn-progressive-tax-rates-income-brackets.html",
-    },
-    {
-        "key": "canadaChildBenefitAnnual",
-        "label": "Canada child benefit overview",
-        "url": "https://www.canada.ca/en/revenue-agency/services/child-family-benefits/canada-child-benefit-overview.html",
-    },
-    {
-        "key": "gstHstCreditAnnual",
-        "label": "GST/HST credit eligibility",
-        "url": "https://www.canada.ca/en/revenue-agency/services/child-family-benefits/gsthstc-eligibility.html",
-    },
-    {
-        "key": "bcFamilyBenefitAnnual",
-        "label": "B.C. family benefit",
-        "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/bc-family-benefit",
-    },
-    {
-        "key": "bcClimateActionCreditAnnual",
-        "label": "B.C. climate action tax credit",
-        "url": "https://www2.gov.bc.ca/gov/content/taxes/income-taxes/personal/credits/climate-action",
-    },
-]
 
 
 def _require_json_object() -> dict:
@@ -114,6 +84,58 @@ def _optional_children_under_six(payload: dict) -> int:
     return children_under_six
 
 
+def _child_support_payload(payload: dict) -> dict:
+    return {
+        "jurisdiction": str(payload.get("jurisdiction", "BC")).upper(),
+        "children": _require_integer(payload, "children"),
+        "childrenUnderSix": _optional_children_under_six(payload),
+        "taxYear": _optional_tax_year(payload),
+        "payorIncome": _require_number(payload, "payorIncome"),
+        "recipientIncome": _require_number(payload, "recipientIncome"),
+    }
+
+
+def _calculate_child_support_result(payload: dict) -> dict:
+    normalized_payload = _child_support_payload(payload)
+    table = current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(
+        normalized_payload["jurisdiction"]
+    )
+    result = calculate_child_support_breakdown(
+        num_children=normalized_payload["children"],
+        payor_income=normalized_payload["payorIncome"],
+        recipient_income=normalized_payload["recipientIncome"],
+        table=table,
+    )
+    result["taxYear"] = normalized_payload["taxYear"]
+    logger.debug("Built child support result for payload %s", normalized_payload)
+    return result
+
+
+def _calculate_spousal_support_result(payload: dict) -> dict:
+    normalized_payload = _child_support_payload(payload)
+    target_min_percent = _require_number(payload, "targetMinPercent")
+    target_max_percent = _require_number(payload, "targetMaxPercent")
+    if target_min_percent >= target_max_percent:
+        raise ValueError("'targetMinPercent' must be less than 'targetMaxPercent'.")
+
+    result = calculate_spousal_support_estimate(
+        payor_income=normalized_payload["payorIncome"],
+        recipient_income=normalized_payload["recipientIncome"],
+        payor_spousal_income=_optional_number(payload, "payorSpousalIncome"),
+        recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
+        fixed_total_support_annual=_optional_number(payload, "fixedTotalSupportAnnual"),
+        num_children=normalized_payload["children"],
+        children_under_six=normalized_payload["childrenUnderSix"],
+        tax_year=normalized_payload["taxYear"],
+        target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
+        table=current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(
+            normalized_payload["jurisdiction"]
+        ),
+    )
+    logger.debug("Built spousal support result for payload %s", normalized_payload)
+    return result
+
+
 @api_blueprint.get("/health")
 def healthcheck():
     logger.debug("Healthcheck requested.")
@@ -158,16 +180,7 @@ def metadata():
 def child_support():
     try:
         payload = _require_json_object()
-        jurisdiction = str(payload.get("jurisdiction", "BC")).upper()
-        table = current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(jurisdiction)
-
-        result = calculate_child_support_breakdown(
-            num_children=_require_integer(payload, "children"),
-            payor_income=_require_number(payload, "payorIncome"),
-            recipient_income=_require_number(payload, "recipientIncome"),
-            table=table,
-        )
-        result["taxYear"] = _optional_tax_year(payload)
+        result = _calculate_child_support_result(payload)
     except ValueError as error:
         logger.warning("Invalid child support request: %s", error)
         return jsonify({"error": str(error)}), 400
@@ -180,27 +193,39 @@ def child_support():
 def spousal_support():
     try:
         payload = _require_json_object()
-        jurisdiction = str(payload.get("jurisdiction", "BC")).upper()
-        target_min_percent = _require_number(payload, "targetMinPercent")
-        target_max_percent = _require_number(payload, "targetMaxPercent")
-        if target_min_percent >= target_max_percent:
-            raise ValueError("'targetMinPercent' must be less than 'targetMaxPercent'.")
-
-        result = calculate_spousal_support_estimate(
-            payor_income=_require_number(payload, "payorIncome"),
-            recipient_income=_require_number(payload, "recipientIncome"),
-            payor_spousal_income=_optional_number(payload, "payorSpousalIncome"),
-            recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
-            fixed_total_support_annual=_optional_number(payload, "fixedTotalSupportAnnual"),
-            num_children=_require_integer(payload, "children"),
-            children_under_six=_optional_children_under_six(payload),
-            tax_year=_optional_tax_year(payload),
-            target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
-            table=current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(jurisdiction),
-        )
+        result = _calculate_spousal_support_result(payload)
     except ValueError as error:
         logger.warning("Invalid spousal support request: %s", error)
         return jsonify({"error": str(error)}), 400
 
     logger.info("Calculated spousal support estimate for %s children.", result["children"])
     return jsonify(result)
+
+
+@api_blueprint.post("/export/report.pdf")
+def export_report():
+    try:
+        payload = _require_json_object()
+        child_support_result = _calculate_child_support_result(payload)
+        spousal_support_result = _calculate_spousal_support_result(payload)
+        pdf_bytes = render_support_report_pdf(
+            scenario=_child_support_payload(payload),
+            child_support=child_support_result,
+            spousal_support=spousal_support_result,
+            source_references=filter_source_references(
+                has_child_support=True,
+                has_spousal_support=True,
+                benefit_line_items=spousal_support_result["benefits"]["lineItems"],
+            ),
+        )
+    except ValueError as error:
+        logger.warning("Invalid PDF export request: %s", error)
+        return jsonify({"error": str(error)}), 400
+
+    logger.info("Generated PDF report for %s children.", child_support_result["children"])
+    return send_file(
+        BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name="canadian-support-calculator-report.pdf",
+    )

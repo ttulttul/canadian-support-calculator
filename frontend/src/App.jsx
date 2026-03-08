@@ -658,6 +658,29 @@ async function postJson(url, payload) {
   return data
 }
 
+async function postPdf(url, payload) {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    let errorMessage = 'Request failed.'
+    try {
+      const data = await response.json()
+      errorMessage = data.error ?? errorMessage
+    } catch {
+      errorMessage = 'Request failed.'
+    }
+    throw new Error(errorMessage)
+  }
+
+  return response.blob()
+}
+
 function DetailList({ items, emphasis = false }) {
   return (
     <dl className={`detail-list${emphasis ? ' detail-list--emphasis' : ''}`}>
@@ -897,6 +920,17 @@ function ResultTable({ caption, columns, rows, numericColumnIndexes = [] }) {
   )
 }
 
+function buildScenarioPayload(activeScenario) {
+  return {
+    jurisdiction: activeScenario.jurisdiction,
+    children: Number(activeScenario.children),
+    childrenUnderSix: Number(activeScenario.childrenUnderSix),
+    taxYear: Number(activeScenario.taxYear),
+    payorIncome: Number(activeScenario.payorIncome),
+    recipientIncome: Number(activeScenario.recipientIncome),
+  }
+}
+
 function App() {
   const [metadata, setMetadata] = useState(null)
   const [scenario, setScenario] = useState(defaultScenario)
@@ -909,6 +943,7 @@ function App() {
   const [spousalError, setSpousalError] = useState('')
   const [metadataError, setMetadataError] = useState('')
   const [isCalculating, setIsCalculating] = useState(false)
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false)
   const [editingGrossIncome, setEditingGrossIncome] = useState(null)
   const requestSequence = useRef(0)
   const scenarioRef = useRef(defaultScenario)
@@ -955,14 +990,7 @@ function App() {
     setSpousalError('')
     const spousalSupportAvailable = spousalSupportJurisdictionCodes.has(activeScenario.jurisdiction)
 
-    const payload = {
-      jurisdiction: activeScenario.jurisdiction,
-      children: Number(activeScenario.children),
-      childrenUnderSix: Number(activeScenario.childrenUnderSix),
-      taxYear: Number(activeScenario.taxYear),
-      payorIncome: Number(activeScenario.payorIncome),
-      recipientIncome: Number(activeScenario.recipientIncome),
-    }
+    const payload = buildScenarioPayload(activeScenario)
 
     const [childResponse, spousalResponse] = await Promise.allSettled([
       postJson('/api/calculate/child-support', payload),
@@ -1040,6 +1068,44 @@ function App() {
   function handleSubmit(event) {
     event.preventDefault()
     void submitScenario(scenario)
+  }
+
+  async function handlePdfDownload() {
+    if (!metadata || !scenarioHasRequiredFields(scenarioRef.current)) {
+      return
+    }
+
+    const activeScenario = scenarioRef.current
+    const payload = buildScenarioPayload(activeScenario)
+    setIsDownloadingPdf(true)
+    try {
+      const pdfBlob = await postPdf('/api/export/report.pdf', {
+        ...payload,
+        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.payorSpousalIncome !== ''
+          ? { payorSpousalIncome: Number(activeScenario.payorSpousalIncome) }
+          : {}),
+        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.recipientSpousalIncome !== ''
+          ? { recipientSpousalIncome: Number(activeScenario.recipientSpousalIncome) }
+          : {}),
+        ...(activeScenario.fixedTotalSupportAnnual !== ''
+          ? { fixedTotalSupportAnnual: Number(activeScenario.fixedTotalSupportAnnual) }
+          : {}),
+        targetMinPercent: Number(activeScenario.targetMinPercent),
+        targetMaxPercent: Number(activeScenario.targetMaxPercent),
+      })
+      const objectUrl = URL.createObjectURL(pdfBlob)
+      const anchor = document.createElement('a')
+      anchor.href = objectUrl
+      anchor.download = 'canadian-support-calculator-report.pdf'
+      document.body.append(anchor)
+      anchor.click()
+      anchor.remove()
+      URL.revokeObjectURL(objectUrl)
+    } catch (error) {
+      setSpousalError(error.message)
+    } finally {
+      setIsDownloadingPdf(false)
+    }
   }
 
   function handleReset() {
@@ -1730,22 +1796,32 @@ function App() {
                 <h2>Net Income</h2>
                 <p>Estimated annual income after tax, child support, spousal support, and benefits.</p>
               </div>
-              <div className="view-toggle" role="group" aria-label="Net income period">
+              <div className="section-header__actions">
+                <div className="view-toggle" role="group" aria-label="Net income period">
+                  <button
+                    type="button"
+                    className={netIncomePeriod === 'annual' ? 'is-active' : ''}
+                    aria-pressed={netIncomePeriod === 'annual'}
+                    onClick={() => setNetIncomePeriod('annual')}
+                  >
+                    Annual
+                  </button>
+                  <button
+                    type="button"
+                    className={netIncomePeriod === 'monthly' ? 'is-active' : ''}
+                    aria-pressed={netIncomePeriod === 'monthly'}
+                    onClick={() => setNetIncomePeriod('monthly')}
+                  >
+                    Monthly
+                  </button>
+                </div>
                 <button
                   type="button"
-                  className={netIncomePeriod === 'annual' ? 'is-active' : ''}
-                  aria-pressed={netIncomePeriod === 'annual'}
-                  onClick={() => setNetIncomePeriod('annual')}
+                  className="drawer-toggle"
+                  onClick={() => void handlePdfDownload()}
+                  disabled={isDownloadingPdf || isCalculating}
                 >
-                  Annual
-                </button>
-                <button
-                  type="button"
-                  className={netIncomePeriod === 'monthly' ? 'is-active' : ''}
-                  aria-pressed={netIncomePeriod === 'monthly'}
-                  onClick={() => setNetIncomePeriod('monthly')}
-                >
-                  Monthly
+                  {isDownloadingPdf ? 'Building PDF' : 'PDF Download'}
                 </button>
               </div>
             </div>

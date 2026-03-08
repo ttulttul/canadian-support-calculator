@@ -10,6 +10,14 @@ function mockResponse(body, ok = true) {
   })
 }
 
+function mockPdfResponse(blobBody, ok = true) {
+  return Promise.resolve({
+    ok,
+    json: async () => ({ error: 'PDF generation failed.' }),
+    blob: async () => blobBody,
+  })
+}
+
 function buildBenefitsResponse(jurisdiction) {
   if (jurisdiction === 'BC') {
     return {
@@ -237,6 +245,9 @@ function buildSpousalResponse(payload) {
 
 describe('App', () => {
   beforeEach(() => {
+    globalThis.URL.createObjectURL = vi.fn(() => 'blob:pdf-report')
+    globalThis.URL.revokeObjectURL = vi.fn()
+    HTMLAnchorElement.prototype.click = vi.fn()
     globalThis.fetch = vi.fn((url, options) => {
       if (url === '/api/metadata') {
         return mockResponse({
@@ -324,6 +335,10 @@ describe('App', () => {
       if (url === '/api/calculate/spousal-support') {
         const payload = JSON.parse(options.body)
         return mockResponse(buildSpousalResponse(payload))
+      }
+
+      if (url === '/api/export/report.pdf') {
+        return mockPdfResponse(new Blob(['pdf-bytes'], { type: 'application/pdf' }))
       }
 
       return Promise.reject(new Error(`Unexpected request: ${url}`))
@@ -666,5 +681,25 @@ describe('App', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
     expect(await screen.findByText('Fixed total gross support')).toBeInTheDocument()
     expect(await screen.findByText('$50,000')).toBeInTheDocument()
+  })
+
+  it('downloads a PDF report for the current scenario', async () => {
+    render(<App />)
+
+    await screen.findByRole('table', { name: 'Net income calculation' })
+    fireEvent.click(screen.getByRole('button', { name: 'PDF Download' }))
+
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        '/api/export/report.pdf',
+        expect.objectContaining({
+          method: 'POST',
+        }),
+      )
+    })
+
+    expect(globalThis.URL.createObjectURL).toHaveBeenCalledTimes(1)
+    expect(HTMLAnchorElement.prototype.click).toHaveBeenCalledTimes(1)
+    expect(globalThis.URL.revokeObjectURL).toHaveBeenCalledWith('blob:pdf-report')
   })
 })

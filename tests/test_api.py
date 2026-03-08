@@ -198,3 +198,23 @@ def test_spousal_support_route_accepts_fixed_total_support(client):
         50000 - payload["childSupport"]["netAnnual"],
         rel=1e-4,
     )
+
+
+def test_pdf_export_route_returns_pdf(client):
+    response = client.post(
+        "/api/export/report.pdf",
+        json={
+            "jurisdiction": "BC",
+            "children": 2,
+            "childrenUnderSix": 1,
+            "taxYear": 2025,
+            "payorIncome": 244658,
+            "recipientIncome": 30600,
+            "targetMinPercent": 40,
+            "targetMaxPercent": 46,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.mimetype == "application/pdf"
+    assert response.data.startswith(b"%PDF")
