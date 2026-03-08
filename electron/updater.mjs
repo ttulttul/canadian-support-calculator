@@ -12,6 +12,14 @@ export function resolveAutoUpdaterModule(updaterModule) {
   throw new Error('Unable to resolve autoUpdater from the electron-updater module.')
 }
 
+export function formatUpdateError(error) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return String(error)
+}
+
 export function shouldEnableAutoUpdates({
   isPackaged,
   platform = process.platform,
@@ -79,6 +87,11 @@ export async function checkForUpdates({
     throw new Error('checkForUpdates requires autoUpdaterImpl when updates are enabled.')
   }
 
-  await autoUpdaterImpl.checkForUpdates()
-  return true
+  try {
+    await autoUpdaterImpl.checkForUpdates()
+    return true
+  } catch (error) {
+    log.warn?.(`Desktop update check skipped: ${formatUpdateError(error)}`)
+    return false
+  }
 }

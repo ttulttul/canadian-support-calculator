@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 
 import {
   checkForUpdates,
+  formatUpdateError,
   resolveAutoUpdaterModule,
   shouldEnableAutoUpdates,
   wireAutoUpdater,
@@ -35,6 +36,34 @@ test('resolveAutoUpdaterModule supports CommonJS-style updater exports', () => {
 
   assert.equal(resolveAutoUpdaterModule({ autoUpdater }), autoUpdater)
   assert.equal(resolveAutoUpdaterModule({ default: { autoUpdater } }), autoUpdater)
+})
+
+test('formatUpdateError prefers Error messages', () => {
+  assert.equal(formatUpdateError(new Error('No published versions on GitHub')), 'No published versions on GitHub')
+  assert.equal(formatUpdateError('plain failure'), 'plain failure')
+})
+
+test('checkForUpdates treats updater failures as non-fatal', async () => {
+  const warnings = []
+
+  const result = await checkForUpdates({
+    enabled: true,
+    autoUpdaterImpl: {
+      async checkForUpdates() {
+        throw new Error('No published versions on GitHub')
+      },
+    },
+    log: {
+      info() {},
+      warn(message) {
+        warnings.push(message)
+      },
+    },
+  })
+
+  assert.equal(result, false)
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0], /No published versions on GitHub/)
 })
 
 test('wireAutoUpdater prompts before installing a downloaded update', async () => {
