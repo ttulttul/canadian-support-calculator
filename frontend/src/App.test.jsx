@@ -10,14 +10,57 @@ function mockResponse(body, ok = true) {
   })
 }
 
+function buildBenefitsResponse(jurisdiction) {
+  if (jurisdiction === 'BC') {
+    return {
+      lineItems: [
+        { key: 'canadaChildBenefitAnnual', label: 'Canada child benefit' },
+        { key: 'gstHstCreditAnnual', label: 'GST/HST credit' },
+        { key: 'bcFamilyBenefitAnnual', label: 'B.C. family benefit' },
+      ],
+      payor: {
+        canadaChildBenefitAnnual: 0,
+        gstHstCreditAnnual: 0,
+        bcFamilyBenefitAnnual: 0,
+        totalAnnual: 0,
+      },
+      recipient: {
+        canadaChildBenefitAnnual: 5471,
+        gstHstCreditAnnual: 308,
+        bcFamilyBenefitAnnual: 1694,
+        totalAnnual: 7473,
+      },
+    }
+  }
+
+  return {
+    lineItems: [
+      { key: 'canadaChildBenefitAnnual', label: 'Canada child benefit' },
+      { key: 'gstHstCreditAnnual', label: 'GST/HST credit' },
+    ],
+    payor: {
+      canadaChildBenefitAnnual: 0,
+      gstHstCreditAnnual: 0,
+      totalAnnual: 0,
+    },
+    recipient: {
+      canadaChildBenefitAnnual: 5471,
+      gstHstCreditAnnual: 308,
+      totalAnnual: 5779,
+    },
+  }
+}
+
 function buildSpousalResponse(payload) {
   const usingAlternatePayorIncome = payload.payorSpousalIncome === 175000
   const usingFixedTotalSupport = payload.fixedTotalSupportAnnual === 50000
   const payorSpousalIncome = payload.payorSpousalIncome ?? payload.payorIncome
   const recipientSpousalIncome = payload.recipientSpousalIncome ?? payload.recipientIncome
+  const benefits = buildBenefitsResponse(payload.jurisdiction)
 
   if (usingFixedTotalSupport) {
     return {
+      jurisdiction: payload.jurisdiction,
       estimatedSpousalSupportMonthly: 1383.71,
       estimatedSpousalSupportAnnual: 16604.48,
       taxYear: payload.taxYear,
@@ -32,6 +75,15 @@ function buildSpousalResponse(payload) {
       iterations: 1,
       actualNetIncomePayor: 118679.95,
       actualNetIncomeRecipient: 73174.67,
+      payorEquivalentBeforeTaxIncome: 170000,
+      recipientEquivalentBeforeTaxIncome: 96000,
+      payorTaxBeforeSupportDeduction: 86685,
+      payorTax: 75978,
+      payorTaxDeductionBenefit: 10707,
+      recipientTaxBeforeSupportInclusion: 4638,
+      recipientTax: 9276,
+      recipientTaxSupportCost: 4638,
+      benefits,
       ndiPayor: 102500.12,
       ndiRecipient: 72844.5,
       childSupport: {
@@ -54,6 +106,7 @@ function buildSpousalResponse(payload) {
 
   if (usingAlternatePayorIncome) {
     return {
+      jurisdiction: payload.jurisdiction,
       estimatedSpousalSupportMonthly: 0,
       estimatedSpousalSupportAnnual: 0,
       taxYear: payload.taxYear,
@@ -67,6 +120,15 @@ function buildSpousalResponse(payload) {
       iterations: 19,
       actualNetIncomePayor: 124364.43,
       actualNetIncomeRecipient: 67325.54,
+      payorEquivalentBeforeTaxIncome: 173500,
+      recipientEquivalentBeforeTaxIncome: 90000,
+      payorTaxBeforeSupportDeduction: 79000,
+      payorTax: 79000,
+      payorTaxDeductionBenefit: 0,
+      recipientTaxBeforeSupportInclusion: 4638,
+      recipientTax: 4638,
+      recipientTaxSupportCost: 0,
+      benefits,
       ndiPayor: 93248.4,
       ndiRecipient: 67212.66,
       childSupport: {
@@ -102,6 +164,7 @@ function buildSpousalResponse(payload) {
   }
 
   return {
+    jurisdiction: payload.jurisdiction,
     estimatedSpousalSupportMonthly: 1848.47,
     estimatedSpousalSupportAnnual: 22181.64,
     taxYear: payload.taxYear,
@@ -115,6 +178,15 @@ function buildSpousalResponse(payload) {
     iterations: 27,
     actualNetIncomePayor: 113102.24,
     actualNetIncomeRecipient: 75400.99,
+    payorEquivalentBeforeTaxIncome: 161200,
+    recipientEquivalentBeforeTaxIncome: 99571,
+    payorTaxBeforeSupportDeduction: 86685,
+    payorTax: 75978,
+    payorTaxDeductionBenefit: 10707,
+    recipientTaxBeforeSupportInclusion: 4638,
+    recipientTax: 9276,
+    recipientTaxSupportCost: 4638,
+    benefits,
     ndiPayor: 113102.24,
     ndiRecipient: 75400.99,
     childSupport: {
@@ -182,16 +254,29 @@ describe('App', () => {
             { code: 'SK', name: 'Saskatchewan' },
             { code: 'YT', name: 'Yukon' },
           ],
-          spousalSupportJurisdictions: [{ code: 'BC', name: 'British Columbia' }],
+          spousalSupportJurisdictions: [
+            { code: 'AB', name: 'Alberta' },
+            { code: 'BC', name: 'British Columbia' },
+            { code: 'MB', name: 'Manitoba' },
+            { code: 'NB', name: 'New Brunswick' },
+            { code: 'NL', name: 'Newfoundland and Labrador' },
+            { code: 'NS', name: 'Nova Scotia' },
+            { code: 'NT', name: 'Northwest Territories' },
+            { code: 'NU', name: 'Nunavut' },
+            { code: 'ON', name: 'Ontario' },
+            { code: 'PE', name: 'Prince Edward Island' },
+            { code: 'SK', name: 'Saskatchewan' },
+            { code: 'YT', name: 'Yukon' },
+          ],
           supportedChildren: [1, 2, 3, 4, 5, 6, 7],
           supportedChildrenNote: 'Six and seven children use the federal six-or-more table.',
           defaultTaxYear: 2023,
           disclaimer:
-            'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support currently uses an indexed approximation of the 2023 combined BC tax model plus annualized shared-custody family benefits and credits.',
+            'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support uses indexed 2023 federal and provincial marginal tax brackets by jurisdiction, plus annualized shared-custody family benefits.',
           benefitAssumptions:
-            'Benefit estimates assume both parents are single households in a shared-custody offset scenario.',
+            'Benefit estimates assume both parents are single households in a shared-custody offset scenario. Federal Canada Child Benefit and GST/HST credit are modeled for all supported jurisdictions; B.C. family benefits are included for British Columbia.',
           spousalSupportAssumptions:
-            'Spousal support is currently available only for British Columbia in this version.',
+            'Spousal support is available for all supported non-Quebec jurisdictions using the same NDI iteration model as child support.',
         })
       }
 
@@ -224,12 +309,12 @@ describe('App', () => {
     expect(await screen.findByText('Canadian Support Calculator')).toBeInTheDocument()
     expect(
       await screen.findByText(
-        'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support currently uses an indexed approximation of the 2023 combined BC tax model plus annualized shared-custody family benefits and credits.',
+        'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support uses indexed 2023 federal and provincial marginal tax brackets by jurisdiction, plus annualized shared-custody family benefits.',
       ),
     ).toBeInTheDocument()
     expect(
       await screen.findByText(
-        'Benefit estimates assume both parents are single households in a shared-custody offset scenario.',
+        'Benefit estimates assume both parents are single households in a shared-custody offset scenario. Federal Canada Child Benefit and GST/HST credit are modeled for all supported jurisdictions; B.C. family benefits are included for British Columbia.',
       ),
     ).toBeInTheDocument()
     expect(
@@ -261,7 +346,7 @@ describe('App', () => {
     expect(await screen.findByText('-$33,396')).toBeInTheDocument()
     expect(await screen.findByText('+$10,707')).toBeInTheDocument()
     expect(await screen.findByText('-$86,685')).toBeInTheDocument()
-    expect(await screen.findByText('-$4,638')).toBeInTheDocument()
+    expect(await screen.findAllByText('-$4,638')).not.toHaveLength(0)
     expect(await screen.findByText('+$5,471')).toBeInTheDocument()
     expect(await screen.findByText('+$308')).toBeInTheDocument()
     expect(await screen.findByText('+$1,694')).toBeInTheDocument()
@@ -477,18 +562,15 @@ describe('App', () => {
     expect(await screen.findAllByText('$244,000')).not.toHaveLength(0)
   })
 
-  it('supports non-BC child support while skipping the BC-only spousal request', async () => {
+  it('supports non-BC spousal support calculations', async () => {
     render(<App />)
 
     await screen.findByRole('table', { name: 'Net income calculation' })
-    const initialSpousalCallCount = globalThis.fetch.mock.calls.filter(
-      ([url]) => url === '/api/calculate/spousal-support',
-    ).length
 
     fireEvent.change(screen.getByLabelText('Jurisdiction'), { target: { value: 'ON' } })
 
     await waitFor(() => {
-      expect(screen.getByText('Spousal support is currently available only for British Columbia in this version.')).toBeInTheDocument()
+      expect(screen.getByRole('table', { name: 'Net income calculation' })).toBeInTheDocument()
     })
 
     const childSupportCalls = globalThis.fetch.mock.calls.filter(
@@ -497,10 +579,15 @@ describe('App', () => {
     const latestChildPayload = JSON.parse(childSupportCalls.at(-1)[1].body)
     expect(latestChildPayload.jurisdiction).toBe('ON')
 
-    const spousalCallCount = globalThis.fetch.mock.calls.filter(
-      ([url]) => url === '/api/calculate/spousal-support',
-    ).length
-    expect(spousalCallCount).toBe(initialSpousalCallCount)
+    const latestSpousalPayload = JSON.parse(
+      globalThis.fetch.mock.calls
+        .filter(([url]) => url === '/api/calculate/spousal-support')
+        .at(-1)[1].body,
+    )
+    expect(latestSpousalPayload.jurisdiction).toBe('ON')
+    expect(screen.queryByText('B.C. family benefit')).not.toBeInTheDocument()
+    expect(await screen.findByText('Canada child benefit')).toBeInTheDocument()
+    expect(await screen.findByText('GST/HST credit')).toBeInTheDocument()
   })
 
   it('can force a fixed total gross support amount', async () => {

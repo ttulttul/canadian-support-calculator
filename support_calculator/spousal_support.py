@@ -3,7 +3,7 @@ import logging
 from .benefits import calculate_shared_custody_benefits
 from .calculations import calculate_child_support_breakdown
 from .tables import ChildSupportTable, load_default_child_support_table
-from .tax import calculate_bc_tax_approx
+from .tax import calculate_equivalent_before_tax_income, calculate_tax_approx
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +35,7 @@ def calculate_spousal_support_estimate(
         raise ValueError("Target range must be between 0 and 1.")
 
     active_table = table or load_default_child_support_table()
+    jurisdiction_code = active_table.jurisdiction_code
     active_payor_spousal_income = (
         payor_income if payor_spousal_income is None else payor_spousal_income
     )
@@ -77,13 +78,18 @@ def calculate_spousal_support_estimate(
     ) -> dict:
         current_payor_taxable_income = max(payor_income - spousal_support_annual, 0.0)
         current_recipient_taxable_income = recipient_income + spousal_support_annual
-        payor_tax = calculate_bc_tax_approx(
-            current_payor_taxable_income, tax_year=tax_year
+        payor_tax = calculate_tax_approx(
+            current_payor_taxable_income,
+            jurisdiction_code=jurisdiction_code,
+            tax_year=tax_year,
         )
-        recipient_tax = calculate_bc_tax_approx(
-            current_recipient_taxable_income, tax_year=tax_year
+        recipient_tax = calculate_tax_approx(
+            current_recipient_taxable_income,
+            jurisdiction_code=jurisdiction_code,
+            tax_year=tax_year,
         )
         benefits = calculate_shared_custody_benefits(
+            jurisdiction_code=jurisdiction_code,
             payor_adjusted_family_net_income=current_payor_taxable_income,
             recipient_adjusted_family_net_income=current_recipient_taxable_income,
             num_children=num_children,
@@ -215,12 +221,14 @@ def calculate_spousal_support_estimate(
         }
         history.append(final_snapshot)
 
-    payor_tax_before_support_deduction = calculate_bc_tax_approx(
+    payor_tax_before_support_deduction = calculate_tax_approx(
         payor_income,
+        jurisdiction_code=jurisdiction_code,
         tax_year=tax_year,
     )
-    recipient_tax_before_support_inclusion = calculate_bc_tax_approx(
+    recipient_tax_before_support_inclusion = calculate_tax_approx(
         recipient_income,
+        jurisdiction_code=jurisdiction_code,
         tax_year=tax_year,
     )
     payor_taxable_income = final_financial_state["payorTaxableIncome"]
@@ -243,6 +251,16 @@ def calculate_spousal_support_estimate(
         + estimated_spousal_support_annual
         + actual_net_child_support_annual
         + benefits["recipient"]["totalAnnual"]
+    )
+    payor_equivalent_before_tax_income = calculate_equivalent_before_tax_income(
+        actual_net_income_payor,
+        jurisdiction_code=jurisdiction_code,
+        tax_year=tax_year,
+    )
+    recipient_equivalent_before_tax_income = calculate_equivalent_before_tax_income(
+        actual_net_income_recipient,
+        jurisdiction_code=jurisdiction_code,
+        tax_year=tax_year,
     )
     return {
         "jurisdiction": active_table.jurisdiction_code,
@@ -279,6 +297,10 @@ def calculate_spousal_support_estimate(
         "benefits": benefits,
         "actualNetIncomePayor": round(actual_net_income_payor, 2),
         "actualNetIncomeRecipient": round(actual_net_income_recipient, 2),
+        "payorEquivalentBeforeTaxIncome": round(payor_equivalent_before_tax_income, 2),
+        "recipientEquivalentBeforeTaxIncome": round(
+            recipient_equivalent_before_tax_income, 2
+        ),
         "ndiPayor": final_snapshot["ndiPayor"],
         "ndiRecipient": final_snapshot["ndiRecipient"],
         "recipientSharePercent": final_snapshot["recipientSharePercent"],

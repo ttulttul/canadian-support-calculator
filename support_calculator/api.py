@@ -104,15 +104,17 @@ def metadata():
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
                 "Child support uses bundled 2017 federal tables for all non-Quebec provinces "
-                "and territories. Spousal support currently uses an indexed approximation of the "
-                "2023 combined BC tax model plus annualized shared-custody family benefits and credits."
+                "and territories. Spousal support uses indexed 2023 federal and provincial marginal "
+                "tax brackets by jurisdiction, plus annualized shared-custody family benefits."
             ),
             "benefitAssumptions": (
                 "Benefit estimates assume both parents are single households in a shared-custody "
-                "offset scenario. Enter the count of children under age 6 for the Canada Child Benefit."
+                "offset scenario. Federal Canada Child Benefit and GST/HST credit are modeled for all "
+                "supported jurisdictions; B.C. family benefits are included for British Columbia."
             ),
             "spousalSupportAssumptions": (
-                "Spousal support is currently available only for British Columbia in this version."
+                "Spousal support is available for all supported non-Quebec jurisdictions using the "
+                "same NDI iteration model as child support."
             ),
         }
     )
@@ -145,11 +147,6 @@ def spousal_support():
     try:
         payload = _require_json_object()
         jurisdiction = str(payload.get("jurisdiction", "BC")).upper()
-        if jurisdiction != "BC":
-            raise ValueError(
-                "Spousal support is currently supported only for British Columbia."
-            )
-
         target_min_percent = _require_number(payload, "targetMinPercent")
         target_max_percent = _require_number(payload, "targetMaxPercent")
         if target_min_percent >= target_max_percent:

@@ -27,13 +27,11 @@ def test_metadata(client):
         {"code": "SK", "name": "Saskatchewan"},
         {"code": "YT", "name": "Yukon"},
     ]
-    assert payload["spousalSupportJurisdictions"] == [
-        {"code": "BC", "name": "British Columbia"}
-    ]
+    assert payload["spousalSupportJurisdictions"] == payload["jurisdictions"]
     assert payload["supportedChildren"] == [1, 2, 3, 4, 5, 6, 7]
     assert payload["defaultTaxYear"] == 2023
     assert "shared-custody" in payload["benefitAssumptions"]
-    assert "British Columbia" in payload["spousalSupportAssumptions"]
+    assert "non-Quebec" in payload["spousalSupportAssumptions"]
 
 
 def test_child_support_route(client):
@@ -91,7 +89,7 @@ def test_spousal_support_rejects_invalid_target_range(client):
     assert response.get_json()["error"] == "'targetMinPercent' must be less than 'targetMaxPercent'."
 
 
-def test_spousal_support_rejects_non_bc_jurisdiction(client):
+def test_spousal_support_route_supports_ontario(client):
     response = client.post(
         "/api/calculate/spousal-support",
         json={
@@ -103,12 +101,15 @@ def test_spousal_support_rejects_non_bc_jurisdiction(client):
             "targetMaxPercent": 46,
         },
     )
+    payload = response.get_json()
 
-    assert response.status_code == 400
-    assert (
-        response.get_json()["error"]
-        == "Spousal support is currently supported only for British Columbia."
-    )
+    assert response.status_code == 200
+    assert payload["jurisdiction"] == "ON"
+    assert payload["estimatedSpousalSupportAnnual"] > 0
+    assert payload["benefits"]["lineItems"] == [
+        {"key": "canadaChildBenefitAnnual", "label": "Canada child benefit"},
+        {"key": "gstHstCreditAnnual", "label": "GST/HST credit"},
+    ]
 
 
 def test_spousal_support_route_accepts_tax_year(client):
@@ -137,6 +138,8 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert payload["recipientTax"] > payload["recipientTaxBeforeSupportInclusion"]
     assert payload["recipientTaxSupportCost"] > 0
     assert payload["benefits"]["recipient"]["totalAnnual"] > 0
+    assert payload["payorEquivalentBeforeTaxIncome"] > 0
+    assert payload["recipientEquivalentBeforeTaxIncome"] > 0
 
 
 def test_spousal_support_route_accepts_separate_spousal_incomes(client):

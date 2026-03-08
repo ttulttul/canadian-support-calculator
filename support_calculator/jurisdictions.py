@@ -38,7 +38,9 @@ NON_QUEBEC_CHILD_SUPPORT_JURISDICTIONS: tuple[Jurisdiction, ...] = (
     Jurisdiction(code="YT", name="Yukon", child_support_section_id=1004780),
 )
 
-SPOUSAL_SUPPORT_JURISDICTION_CODES: tuple[str, ...] = ("BC",)
+SPOUSAL_SUPPORT_JURISDICTION_CODES: tuple[str, ...] = tuple(
+    jurisdiction.code for jurisdiction in NON_QUEBEC_CHILD_SUPPORT_JURISDICTIONS
+)
 
 JURISDICTIONS_BY_CODE: dict[str, Jurisdiction] = {
     jurisdiction.code: jurisdiction

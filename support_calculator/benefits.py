@@ -4,6 +4,18 @@ from .tax import resolve_tax_year_index_factor
 
 logger = logging.getLogger(__name__)
 
+FEDERAL_BENEFIT_LABELS = {
+    "canadaChildBenefitAnnual": "Canada child benefit",
+    "gstHstCreditAnnual": "GST/HST credit",
+}
+
+PROVINCIAL_BENEFIT_LABELS = {
+    "BC": {
+        "bcFamilyBenefitAnnual": "B.C. family benefit",
+        "bcClimateActionCreditAnnual": "B.C. climate action credit",
+    }
+}
+
 CCB_CHILD_COUNT_CAP = 4
 
 CCB_CONFIGS = {
@@ -359,8 +371,26 @@ def _round_benefit_breakdown(values: dict[str, float]) -> dict[str, float]:
     return rounded
 
 
+def _modeled_benefit_labels(
+    *,
+    jurisdiction_code: str,
+    include_climate_credit: bool,
+) -> list[dict[str, str]]:
+    line_items = [
+        {"key": key, "label": label}
+        for key, label in FEDERAL_BENEFIT_LABELS.items()
+    ]
+    for key, label in PROVINCIAL_BENEFIT_LABELS.get(jurisdiction_code, {}).items():
+        if key == "bcClimateActionCreditAnnual" and not include_climate_credit:
+            continue
+        line_items.append({"key": key, "label": label})
+
+    return line_items
+
+
 def calculate_shared_custody_benefits(
     *,
+    jurisdiction_code: str,
     payor_adjusted_family_net_income: float,
     recipient_adjusted_family_net_income: float,
     num_children: int,
@@ -373,6 +403,7 @@ def calculate_shared_custody_benefits(
     if children_under_six < 0 or children_under_six > num_children:
         raise ValueError("'childrenUnderSix' must be between zero and the total number of children.")
 
+    normalized_code = str(jurisdiction_code or "BC").upper()
     payor_full = {
         "canadaChildBenefitAnnual": calculate_canada_child_benefit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
@@ -381,16 +412,6 @@ def calculate_shared_custody_benefits(
             tax_year=tax_year,
         ),
         "gstHstCreditAnnual": calculate_gst_hst_credit(
-            adjusted_family_net_income=payor_adjusted_family_net_income,
-            registered_children=num_children,
-            tax_year=tax_year,
-        ),
-        "bcFamilyBenefitAnnual": calculate_bc_family_benefit(
-            adjusted_family_net_income=payor_adjusted_family_net_income,
-            registered_children=num_children,
-            tax_year=tax_year,
-        ),
-        "bcClimateActionCreditAnnual": calculate_bc_climate_action_credit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
             registered_children=num_children,
             tax_year=tax_year,
@@ -408,17 +429,29 @@ def calculate_shared_custody_benefits(
             registered_children=num_children,
             tax_year=tax_year,
         ),
-        "bcFamilyBenefitAnnual": calculate_bc_family_benefit(
-            adjusted_family_net_income=recipient_adjusted_family_net_income,
-            registered_children=num_children,
-            tax_year=tax_year,
-        ),
-        "bcClimateActionCreditAnnual": calculate_bc_climate_action_credit(
-            adjusted_family_net_income=recipient_adjusted_family_net_income,
-            registered_children=num_children,
-            tax_year=tax_year,
-        ),
     }
+
+    if normalized_code == "BC":
+        payor_full["bcFamilyBenefitAnnual"] = calculate_bc_family_benefit(
+            adjusted_family_net_income=payor_adjusted_family_net_income,
+            registered_children=num_children,
+            tax_year=tax_year,
+        )
+        payor_full["bcClimateActionCreditAnnual"] = calculate_bc_climate_action_credit(
+            adjusted_family_net_income=payor_adjusted_family_net_income,
+            registered_children=num_children,
+            tax_year=tax_year,
+        )
+        recipient_full["bcFamilyBenefitAnnual"] = calculate_bc_family_benefit(
+            adjusted_family_net_income=recipient_adjusted_family_net_income,
+            registered_children=num_children,
+            tax_year=tax_year,
+        )
+        recipient_full["bcClimateActionCreditAnnual"] = calculate_bc_climate_action_credit(
+            adjusted_family_net_income=recipient_adjusted_family_net_income,
+            registered_children=num_children,
+            tax_year=tax_year,
+        )
 
     shared_multiplier = 0.5
     payor = _round_benefit_breakdown(
@@ -428,19 +461,29 @@ def calculate_shared_custody_benefits(
         {key: value * shared_multiplier for key, value in recipient_full.items()}
     )
     logger.info(
-        "Calculated shared-custody benefits: tax_year=%s children=%s under_6=%s payor_total=%s recipient_total=%s",
+        "Calculated shared-custody benefits: jurisdiction=%s tax_year=%s children=%s under_6=%s payor_total=%s recipient_total=%s",
+        normalized_code,
         tax_year,
         num_children,
         children_under_six,
         payor["totalAnnual"],
         recipient["totalAnnual"],
     )
+    include_climate_credit = (
+        payor.get("bcClimateActionCreditAnnual", 0.0) > 0
+        or recipient.get("bcClimateActionCreditAnnual", 0.0) > 0
+    )
     return {
+        "jurisdiction": normalized_code,
         "assumptions": {
             "sharedCustody": True,
             "singleHouseholds": True,
             "childrenUnderSix": children_under_six,
         },
+        "lineItems": _modeled_benefit_labels(
+            jurisdiction_code=normalized_code,
+            include_climate_credit=include_climate_credit,
+        ),
         "payor": payor,
         "recipient": recipient,
     }

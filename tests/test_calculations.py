@@ -7,7 +7,7 @@ from support_calculator.tables import (
     load_default_child_support_registry,
     load_default_child_support_table,
 )
-from support_calculator.tax import calculate_bc_tax_approx
+from support_calculator.tax import calculate_bc_tax_approx, calculate_tax_approx
 
 
 def test_child_support_registry_loads_all_non_quebec_jurisdictions():
@@ -80,6 +80,8 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["recipientTax"] > result["recipientTaxBeforeSupportInclusion"]
     assert result["recipientTaxSupportCost"] > 0
     assert result["benefits"]["recipient"]["totalAnnual"] > 0
+    assert result["benefits"]["jurisdiction"] == "BC"
+    assert result["benefits"]["lineItems"][0]["label"] == "Canada child benefit"
     assert result["ndiChildSupport"]["netAnnual"] == result["childSupport"]["netAnnual"]
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
@@ -117,6 +119,7 @@ def test_spousal_support_estimate_can_use_separate_spousal_incomes():
         rel=1e-4,
     )
     expected_benefits = calculate_shared_custody_benefits(
+        jurisdiction_code="BC",
         payor_adjusted_family_net_income=result["payorTaxableIncome"],
         recipient_adjusted_family_net_income=result["recipientTaxableIncome"],
         num_children=2,
@@ -174,6 +177,7 @@ def test_spousal_support_estimate_can_use_fixed_total_support():
 
 def test_shared_custody_benefits_include_low_income_credits():
     result = calculate_shared_custody_benefits(
+        jurisdiction_code="BC",
         payor_adjusted_family_net_income=40_000,
         recipient_adjusted_family_net_income=25_000,
         num_children=2,
@@ -184,6 +188,31 @@ def test_shared_custody_benefits_include_low_income_credits():
     assert result["payor"]["totalAnnual"] == approx(9_851.92, rel=1e-4)
     assert result["recipient"]["totalAnnual"] == approx(10_170.0, rel=1e-4)
     assert result["recipient"]["canadaChildBenefitAnnual"] > result["payor"]["canadaChildBenefitAnnual"]
+    assert [item["label"] for item in result["lineItems"]] == [
+        "Canada child benefit",
+        "GST/HST credit",
+        "B.C. family benefit",
+        "B.C. climate action credit",
+    ]
+
+
+def test_shared_custody_benefits_skip_bc_specific_credits_outside_bc():
+    result = calculate_shared_custody_benefits(
+        jurisdiction_code="ON",
+        payor_adjusted_family_net_income=40_000,
+        recipient_adjusted_family_net_income=25_000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2023,
+    )
+
+    assert result["jurisdiction"] == "ON"
+    assert [item["label"] for item in result["lineItems"]] == [
+        "Canada child benefit",
+        "GST/HST credit",
+    ]
+    assert "bcFamilyBenefitAnnual" not in result["payor"]
+    assert "bcClimateActionCreditAnnual" not in result["recipient"]
 
 
 def test_bc_tax_approx_is_progressive():
@@ -196,3 +225,33 @@ def test_bc_tax_approx_is_progressive():
 
 def test_tax_year_changes_indexed_tax_result():
     assert calculate_bc_tax_approx(50_000, tax_year=2019) > calculate_bc_tax_approx(50_000, tax_year=2025)
+
+
+def test_tax_approx_varies_by_jurisdiction():
+    bc_tax = calculate_tax_approx(200_000, jurisdiction_code="BC", tax_year=2023)
+    on_tax = calculate_tax_approx(200_000, jurisdiction_code="ON", tax_year=2023)
+    ab_tax = calculate_tax_approx(200_000, jurisdiction_code="AB", tax_year=2023)
+
+    assert bc_tax == approx(65_501.88, rel=1e-4)
+    assert on_tax == approx(63_055.34, rel=1e-4)
+    assert ab_tax == approx(65_679.57, rel=1e-4)
+    assert bc_tax > on_tax > 0
+
+
+def test_spousal_support_estimate_supports_ontario():
+    result = calculate_spousal_support_estimate(
+        payor_income=244658,
+        recipient_income=30600,
+        num_children=2,
+        children_under_six=0,
+        tax_year=2025,
+        table=load_default_child_support_table("ON"),
+    )
+
+    assert result["jurisdiction"] == "ON"
+    assert 40 <= result["recipientSharePercent"] <= 46
+    assert result["estimatedSpousalSupportAnnual"] > 0
+    assert [item["label"] for item in result["benefits"]["lineItems"]] == [
+        "Canada child benefit",
+        "GST/HST credit",
+    ]

@@ -18,19 +18,94 @@ const defaultScenario = {
 
 const baseTaxYear = 2023
 const defaultExtrapolationRate = 0.025
-const combinedApproxTaxBrackets2023 = [
-  [0, 45654, 20.06],
-  [45654, 53359, 22.7],
-  [53359, 91310, 28.2],
-  [91310, 104835, 31.0],
-  [104835, 106717, 32.79],
-  [106717, 127299, 38.29],
-  [127299, 165430, 40.7],
-  [165430, 172602, 44.02],
-  [172602, 235675, 46.12],
-  [235675, 240716, 49.8],
-  [240716, Number.POSITIVE_INFINITY, 53.5],
+const federalTaxBrackets2023 = [
+  [0, 53359, 15.0],
+  [53359, 106717, 20.5],
+  [106717, 165430, 26.0],
+  [165430, 235675, 29.0],
+  [235675, Number.POSITIVE_INFINITY, 33.0],
 ]
+const provincialTaxBrackets2023 = {
+  AB: [
+    [0, 142292, 10.0],
+    [142292, 170751, 12.0],
+    [170751, 227668, 13.0],
+    [227668, 341502, 14.0],
+    [341502, Number.POSITIVE_INFINITY, 15.0],
+  ],
+  BC: [
+    [0, 45654, 5.06],
+    [45654, 91310, 7.7],
+    [91310, 104835, 10.5],
+    [104835, 127299, 12.29],
+    [127299, 172602, 14.7],
+    [172602, 240716, 16.8],
+    [240716, Number.POSITIVE_INFINITY, 20.5],
+  ],
+  MB: [
+    [0, 47000, 10.8],
+    [47000, 100000, 12.75],
+    [100000, Number.POSITIVE_INFINITY, 17.4],
+  ],
+  NB: [
+    [0, 47715, 9.4],
+    [47715, 95431, 14.0],
+    [95431, 176756, 16.0],
+    [176756, Number.POSITIVE_INFINITY, 19.5],
+  ],
+  NL: [
+    [0, 41457, 8.7],
+    [41457, 82913, 14.5],
+    [82913, 148027, 15.8],
+    [148027, 207239, 17.8],
+    [207239, 264750, 19.8],
+    [264750, 529500, 20.8],
+    [529500, Number.POSITIVE_INFINITY, 21.3],
+  ],
+  NS: [
+    [0, 29590, 8.79],
+    [29590, 59180, 14.95],
+    [59180, 93000, 16.67],
+    [93000, 150000, 17.5],
+    [150000, Number.POSITIVE_INFINITY, 21.0],
+  ],
+  NT: [
+    [0, 48326, 5.9],
+    [48326, 96655, 8.6],
+    [96655, 157139, 12.2],
+    [157139, Number.POSITIVE_INFINITY, 14.05],
+  ],
+  NU: [
+    [0, 53268, 4.0],
+    [53268, 106537, 7.0],
+    [106537, 173205, 9.0],
+    [173205, Number.POSITIVE_INFINITY, 11.5],
+  ],
+  ON: [
+    [0, 49231, 5.05],
+    [49231, 98463, 9.15],
+    [98463, 150000, 11.16],
+    [150000, 220000, 12.16],
+    [220000, Number.POSITIVE_INFINITY, 13.16],
+  ],
+  PE: [
+    [0, 31984, 9.8],
+    [31984, 63969, 13.8],
+    [63969, Number.POSITIVE_INFINITY, 16.7],
+  ],
+  SK: [
+    [0, 49720, 10.5],
+    [49720, 142058, 12.5],
+    [142058, Number.POSITIVE_INFINITY, 14.5],
+  ],
+  YT: [
+    [0, 53359, 6.4],
+    [53359, 106717, 9.0],
+    [106717, 165430, 10.9],
+    [165430, 500000, 12.8],
+    [500000, Number.POSITIVE_INFINITY, 15.0],
+  ],
+}
 const knownTaxYearIndexFactors = {
   2017: 45916 / 53359,
   2018: 46605 / 53359,
@@ -214,12 +289,12 @@ function resolveTaxYearIndexFactor(taxYear) {
   return knownTaxYearIndexFactors[maxYear] * (1 + defaultExtrapolationRate) ** years
 }
 
-function calculateApproxBcTax(income, taxYear) {
+function calculateProgressiveTax(income, brackets, taxYear) {
   const normalizedIncome = Math.max(asNumber(income), 0)
   const factor = resolveTaxYearIndexFactor(taxYear)
   let tax = 0
 
-  for (const [lower, upper, rate] of combinedApproxTaxBrackets2023) {
+  for (const [lower, upper, rate] of brackets) {
     const indexedLower = lower * factor
     const indexedUpper = upper === Number.POSITIVE_INFINITY ? upper : upper * factor
     if (normalizedIncome <= indexedLower) {
@@ -233,7 +308,18 @@ function calculateApproxBcTax(income, taxYear) {
   return Number(tax.toFixed(2))
 }
 
-function calculateEquivalentBeforeTaxIncome(targetNetIncome, taxYear) {
+function calculateApproxTax(income, jurisdiction, taxYear) {
+  const normalizedJurisdiction = jurisdiction in provincialTaxBrackets2023 ? jurisdiction : 'BC'
+
+  return Number(
+    (
+      calculateProgressiveTax(income, federalTaxBrackets2023, taxYear) +
+      calculateProgressiveTax(income, provincialTaxBrackets2023[normalizedJurisdiction], taxYear)
+    ).toFixed(2),
+  )
+}
+
+function calculateEquivalentBeforeTaxIncome(targetNetIncome, jurisdiction, taxYear) {
   const normalizedTarget = Math.max(asNumber(targetNetIncome), 0)
   if (normalizedTarget <= 0) {
     return 0
@@ -242,13 +328,13 @@ function calculateEquivalentBeforeTaxIncome(targetNetIncome, taxYear) {
   let lower = normalizedTarget
   let upper = Math.max(normalizedTarget, 1)
 
-  while (upper - calculateApproxBcTax(upper, taxYear) < normalizedTarget && upper < 10_000_000) {
+  while (upper - calculateApproxTax(upper, jurisdiction, taxYear) < normalizedTarget && upper < 10_000_000) {
     upper *= 2
   }
 
   for (let index = 0; index < 80; index += 1) {
     const midpoint = (lower + upper) / 2
-    const derivedNetIncome = midpoint - calculateApproxBcTax(midpoint, taxYear)
+    const derivedNetIncome = midpoint - calculateApproxTax(midpoint, jurisdiction, taxYear)
 
     if (derivedNetIncome < normalizedTarget) {
       lower = midpoint
@@ -481,7 +567,46 @@ function calculateBcClimateActionCredit(income, registeredChildren, taxYear) {
   return Number(Math.max(maximumCredit - Math.max(income - threshold, 0) * 0.02, 0).toFixed(2))
 }
 
-function calculateSharedCustodyBenefits(payorIncome, recipientIncome, numChildren, childrenUnderSix, taxYear) {
+function roundBenefitBreakdown(values) {
+  const rounded = Object.fromEntries(
+    Object.entries(values).map(([key, value]) => [key, Number(value.toFixed(2))]),
+  )
+  rounded.totalAnnual = Number(
+    Object.values(values)
+      .reduce((sum, value) => sum + value, 0)
+      .toFixed(2),
+  )
+  return rounded
+}
+
+function buildBenefitLineItems(jurisdiction, payor, recipient) {
+  const lineItems = [
+    { key: 'canadaChildBenefitAnnual', label: 'Canada child benefit' },
+    { key: 'gstHstCreditAnnual', label: 'GST/HST credit' },
+  ]
+
+  if (jurisdiction === 'BC') {
+    lineItems.push({ key: 'bcFamilyBenefitAnnual', label: 'B.C. family benefit' })
+    if (
+      (payor.bcClimateActionCreditAnnual ?? 0) > 0 ||
+      (recipient.bcClimateActionCreditAnnual ?? 0) > 0
+    ) {
+      lineItems.push({ key: 'bcClimateActionCreditAnnual', label: 'B.C. climate action credit' })
+    }
+  }
+
+  return lineItems
+}
+
+function calculateSharedCustodyBenefits(
+  payorIncome,
+  recipientIncome,
+  numChildren,
+  childrenUnderSix,
+  taxYear,
+  jurisdiction,
+) {
+  const normalizedJurisdiction = jurisdiction in provincialTaxBrackets2023 ? jurisdiction : 'BC'
   const multiplier = 0.5
   const buildBreakdown = (income) => {
     const canadaChildBenefitAnnual = calculateCanadaChildBenefit(
@@ -491,43 +616,28 @@ function calculateSharedCustodyBenefits(payorIncome, recipientIncome, numChildre
       taxYear,
     )
     const gstHstCreditAnnual = calculateGstHstCredit(income, numChildren, taxYear)
-    const bcFamilyBenefitAnnual = calculateBcFamilyBenefit(income, numChildren, taxYear)
-    const bcClimateActionCreditAnnual = calculateBcClimateActionCredit(income, numChildren, taxYear)
-
-    return {
-      canadaChildBenefitAnnual: Number((canadaChildBenefitAnnual * multiplier).toFixed(2)),
-      gstHstCreditAnnual: Number((gstHstCreditAnnual * multiplier).toFixed(2)),
-      bcFamilyBenefitAnnual: Number((bcFamilyBenefitAnnual * multiplier).toFixed(2)),
-      bcClimateActionCreditAnnual: Number((bcClimateActionCreditAnnual * multiplier).toFixed(2)),
+    const breakdown = {
+      canadaChildBenefitAnnual: canadaChildBenefitAnnual * multiplier,
+      gstHstCreditAnnual: gstHstCreditAnnual * multiplier,
     }
+
+    if (normalizedJurisdiction === 'BC') {
+      breakdown.bcFamilyBenefitAnnual = calculateBcFamilyBenefit(income, numChildren, taxYear) * multiplier
+      breakdown.bcClimateActionCreditAnnual =
+        calculateBcClimateActionCredit(income, numChildren, taxYear) * multiplier
+    }
+
+    return roundBenefitBreakdown(breakdown)
   }
 
   const payor = buildBreakdown(payorIncome)
   const recipient = buildBreakdown(recipientIncome)
 
   return {
-    payor: {
-      ...payor,
-      totalAnnual: Number(
-        (
-          payor.canadaChildBenefitAnnual +
-          payor.gstHstCreditAnnual +
-          payor.bcFamilyBenefitAnnual +
-          payor.bcClimateActionCreditAnnual
-        ).toFixed(2),
-      ),
-    },
-    recipient: {
-      ...recipient,
-      totalAnnual: Number(
-        (
-          recipient.canadaChildBenefitAnnual +
-          recipient.gstHstCreditAnnual +
-          recipient.bcFamilyBenefitAnnual +
-          recipient.bcClimateActionCreditAnnual
-        ).toFixed(2),
-      ),
-    },
+    jurisdiction: normalizedJurisdiction,
+    lineItems: buildBenefitLineItems(normalizedJurisdiction, payor, recipient),
+    payor,
+    recipient,
   }
 }
 
@@ -889,7 +999,7 @@ function App() {
       setSpousalResult(null)
       setSpousalError(
         metadata?.spousalSupportAssumptions ??
-          'Spousal support is currently available only for British Columbia.',
+          'Spousal support is available for all supported non-Quebec jurisdictions.',
       )
     } else if (spousalResponse.status === 'fulfilled') {
       setSpousalResult(spousalResponse.value)
@@ -993,6 +1103,7 @@ function App() {
         ['Net transfer', formatCurrency(childResult.netMonthly), formatCurrency(childResult.netAnnual)],
       ]
     : []
+  const activeJurisdiction = spousalResult?.jurisdiction ?? scenario.jurisdiction
   const payorGrossIncome = spousalResult ? asNumber(spousalResult.payorIncome) : 0
   const spousalSupportAnnual = spousalResult
     ? asNumber(spousalResult.estimatedSpousalSupportAnnual)
@@ -1011,34 +1122,32 @@ function App() {
         asNumber(spousalResult.children, asNumber(scenario.children)),
         asNumber(spousalResult.childrenUnderSix, asNumber(scenario.childrenUnderSix)),
         activeTaxYear,
+        activeJurisdiction,
       )
     : null
   const payorBenefitBreakdown = spousalResult?.benefits?.payor ??
     benefitFallback?.payor ?? {
       canadaChildBenefitAnnual: 0,
       gstHstCreditAnnual: 0,
-      bcFamilyBenefitAnnual: 0,
-      bcClimateActionCreditAnnual: 0,
       totalAnnual: 0,
     }
   const recipientBenefitBreakdown = spousalResult?.benefits?.recipient ??
     benefitFallback?.recipient ?? {
       canadaChildBenefitAnnual: 0,
       gstHstCreditAnnual: 0,
-      bcFamilyBenefitAnnual: 0,
-      bcClimateActionCreditAnnual: 0,
       totalAnnual: 0,
     }
+  const benefitLineItems = spousalResult?.benefits?.lineItems ?? benefitFallback?.lineItems ?? []
   const payorTaxAfterSupport = spousalResult
     ? asNumber(
         spousalResult.payorTax,
-        calculateApproxBcTax(payorGrossIncome - spousalSupportAnnual, activeTaxYear),
+        calculateApproxTax(payorGrossIncome - spousalSupportAnnual, activeJurisdiction, activeTaxYear),
       )
     : 0
   const payorTaxBeforeSupportDeduction = spousalResult
     ? asNumber(
         spousalResult.payorTaxBeforeSupportDeduction,
-        calculateApproxBcTax(payorGrossIncome, activeTaxYear),
+        calculateApproxTax(payorGrossIncome, activeJurisdiction, activeTaxYear),
       )
     : 0
   const payorTaxDeductionBenefit = spousalResult
@@ -1053,7 +1162,7 @@ function App() {
   const recipientTaxBeforeSupportInclusion = spousalResult
     ? asNumber(
         spousalResult.recipientTaxBeforeSupportInclusion,
-        calculateApproxBcTax(recipientGrossIncome, activeTaxYear),
+        calculateApproxTax(recipientGrossIncome, activeJurisdiction, activeTaxYear),
       )
     : 0
   const recipientTaxSupportCost = spousalResult
@@ -1062,7 +1171,11 @@ function App() {
         Math.max(
           asNumber(
             spousalResult.recipientTax,
-            calculateApproxBcTax(recipientGrossIncome + spousalSupportAnnual, activeTaxYear),
+            calculateApproxTax(
+              recipientGrossIncome + spousalSupportAnnual,
+              activeJurisdiction,
+              activeTaxYear,
+            ),
           ) - recipientTaxBeforeSupportInclusion,
           0,
         ),
@@ -1089,10 +1202,16 @@ function App() {
       )
     : 0
   const payorEquivalentBeforeTaxIncome = spousalResult
-    ? calculateEquivalentBeforeTaxIncome(payorNetIncome, activeTaxYear)
+    ? asNumber(
+        spousalResult.payorEquivalentBeforeTaxIncome,
+        calculateEquivalentBeforeTaxIncome(payorNetIncome, activeJurisdiction, activeTaxYear),
+      )
     : 0
   const recipientEquivalentBeforeTaxIncome = spousalResult
-    ? calculateEquivalentBeforeTaxIncome(recipientNetIncome, activeTaxYear)
+    ? asNumber(
+        spousalResult.recipientEquivalentBeforeTaxIncome,
+        calculateEquivalentBeforeTaxIncome(recipientNetIncome, activeJurisdiction, activeTaxYear),
+      )
     : 0
   const netIncomeDivisor = netIncomePeriod === 'monthly' ? 12 : 1
   const netIncomeColumnLabel = netIncomePeriod === 'monthly' ? 'Monthly amount' : 'Annual amount'
@@ -1102,31 +1221,11 @@ function App() {
         ['Child support', -childSupportAnnual, childSupportAnnual],
         ['Spousal support (pre-tax)', -spousalSupportAnnual, spousalSupportAnnual],
         ['Spousal support (tax deduction)', payorTaxDeductionBenefit, -recipientTaxSupportCost],
-        [
-          'Canada child benefit',
-          payorBenefitBreakdown.canadaChildBenefitAnnual,
-          recipientBenefitBreakdown.canadaChildBenefitAnnual,
-        ],
-        [
-          'GST/HST credit',
-          payorBenefitBreakdown.gstHstCreditAnnual,
-          recipientBenefitBreakdown.gstHstCreditAnnual,
-        ],
-        [
-          'B.C. family benefit',
-          payorBenefitBreakdown.bcFamilyBenefitAnnual,
-          recipientBenefitBreakdown.bcFamilyBenefitAnnual,
-        ],
-        ...((payorBenefitBreakdown.bcClimateActionCreditAnnual > 0 ||
-        recipientBenefitBreakdown.bcClimateActionCreditAnnual > 0)
-          ? [
-              [
-                'B.C. climate action credit',
-                payorBenefitBreakdown.bcClimateActionCreditAnnual,
-                recipientBenefitBreakdown.bcClimateActionCreditAnnual,
-              ],
-            ]
-          : []),
+        ...benefitLineItems.map(({ key, label }) => [
+          label,
+          asNumber(payorBenefitBreakdown[key]),
+          asNumber(recipientBenefitBreakdown[key]),
+        ]),
         ['Income tax', -payorTaxBeforeSupportDeduction, -recipientTaxBeforeSupportInclusion],
         ['Estimated net income', payorNetIncome, recipientNetIncome],
         [
@@ -1279,7 +1378,7 @@ function App() {
       <header className="toolbar">
         <div>
           <h1>Canadian Support Calculator</h1>
-          <p>Child support for all non-Quebec jurisdictions. Spousal support currently British Columbia only.</p>
+          <p>Child and spousal support for all supported non-Quebec jurisdictions.</p>
         </div>
       </header>
 
