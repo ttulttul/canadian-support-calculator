@@ -245,7 +245,8 @@ def calculate_spousal_support_estimate(
         + benefits["recipient"]["totalAnnual"]
     )
     return {
-        "jurisdiction": "BC",
+        "jurisdiction": active_table.jurisdiction_code,
+        "jurisdictionName": active_table.jurisdiction_name,
         "children": num_children,
         "childrenUnderSix": children_under_six,
         "taxYear": tax_year,

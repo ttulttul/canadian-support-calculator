@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, current_app, jsonify, request
 
 from .calculations import calculate_child_support_breakdown
+from .jurisdictions import spousal_support_jurisdictions
 from .spousal_support import calculate_spousal_support_estimate
 from .tax import DEFAULT_TAX_YEAR
 
@@ -88,23 +89,30 @@ def healthcheck():
 
 @api_blueprint.get("/metadata")
 def metadata():
-    table = current_app.config["CHILD_SUPPORT_TABLE"]
+    registry = current_app.config["CHILD_SUPPORT_TABLES"]
     logger.info("Providing calculator metadata.")
     return jsonify(
         {
-            "jurisdictions": [{"code": "BC", "name": "British Columbia"}],
-            "supportedChildren": table.available_children(),
+            "jurisdictions": registry.supported_jurisdictions(),
+            "spousalSupportJurisdictions": [
+                {"code": jurisdiction.code, "name": jurisdiction.name}
+                for jurisdiction in spousal_support_jurisdictions()
+            ],
+            "supportedChildren": registry.supported_children(),
             "supportedChildrenNote": "Six and seven children use the federal six-or-more table.",
             "defaultTargetRangePercent": {"min": 40, "max": 46},
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
-                "Child support uses the bundled 2017 BC simplified federal table. "
-                "Spousal support uses an indexed approximation of the 2023 combined BC tax model "
-                "plus annualized shared-custody family benefits and credits."
+                "Child support uses bundled 2017 federal tables for all non-Quebec provinces "
+                "and territories. Spousal support currently uses an indexed approximation of the "
+                "2023 combined BC tax model plus annualized shared-custody family benefits and credits."
             ),
             "benefitAssumptions": (
                 "Benefit estimates assume both parents are single households in a shared-custody "
                 "offset scenario. Enter the count of children under age 6 for the Canada Child Benefit."
+            ),
+            "spousalSupportAssumptions": (
+                "Spousal support is currently available only for British Columbia in this version."
             ),
         }
     )
@@ -114,15 +122,14 @@ def metadata():
 def child_support():
     try:
         payload = _require_json_object()
-        jurisdiction = payload.get("jurisdiction", "BC")
-        if jurisdiction != "BC":
-            raise ValueError("Only British Columbia is supported in this version.")
+        jurisdiction = str(payload.get("jurisdiction", "BC")).upper()
+        table = current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(jurisdiction)
 
         result = calculate_child_support_breakdown(
             num_children=_require_integer(payload, "children"),
             payor_income=_require_number(payload, "payorIncome"),
             recipient_income=_require_number(payload, "recipientIncome"),
-            table=current_app.config["CHILD_SUPPORT_TABLE"],
+            table=table,
         )
         result["taxYear"] = _optional_tax_year(payload)
     except ValueError as error:
@@ -137,9 +144,11 @@ def child_support():
 def spousal_support():
     try:
         payload = _require_json_object()
-        jurisdiction = payload.get("jurisdiction", "BC")
+        jurisdiction = str(payload.get("jurisdiction", "BC")).upper()
         if jurisdiction != "BC":
-            raise ValueError("Only British Columbia is supported in this version.")
+            raise ValueError(
+                "Spousal support is currently supported only for British Columbia."
+            )
 
         target_min_percent = _require_number(payload, "targetMinPercent")
         target_max_percent = _require_number(payload, "targetMaxPercent")
@@ -156,7 +165,7 @@ def spousal_support():
             children_under_six=_optional_children_under_six(payload),
             tax_year=_optional_tax_year(payload),
             target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
-            table=current_app.config["CHILD_SUPPORT_TABLE"],
+            table=current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(jurisdiction),
         )
     except ValueError as error:
         logger.warning("Invalid spousal support request: %s", error)

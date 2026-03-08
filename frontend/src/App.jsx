@@ -803,6 +803,9 @@ function App() {
   const requestSequence = useRef(0)
   const scenarioRef = useRef(defaultScenario)
   const maxSupportedChildren = Math.max(...(metadata?.supportedChildren ?? [7]))
+  const spousalSupportJurisdictionCodes = new Set(
+    (metadata?.spousalSupportJurisdictions ?? []).map((jurisdiction) => jurisdiction.code),
+  )
 
   useEffect(() => {
     scenarioRef.current = scenario
@@ -840,6 +843,7 @@ function App() {
     setIsCalculating(true)
     setChildError('')
     setSpousalError('')
+    const spousalSupportAvailable = spousalSupportJurisdictionCodes.has(activeScenario.jurisdiction)
 
     const payload = {
       jurisdiction: activeScenario.jurisdiction,
@@ -852,20 +856,22 @@ function App() {
 
     const [childResponse, spousalResponse] = await Promise.allSettled([
       postJson('/api/calculate/child-support', payload),
-      postJson('/api/calculate/spousal-support', {
-        ...payload,
-        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.payorSpousalIncome !== ''
-          ? { payorSpousalIncome: Number(activeScenario.payorSpousalIncome) }
-          : {}),
-        ...(activeScenario.useSeparateSpousalIncomes && activeScenario.recipientSpousalIncome !== ''
-          ? { recipientSpousalIncome: Number(activeScenario.recipientSpousalIncome) }
-          : {}),
-        ...(activeScenario.fixedTotalSupportAnnual !== ''
-          ? { fixedTotalSupportAnnual: Number(activeScenario.fixedTotalSupportAnnual) }
-          : {}),
-        targetMinPercent: Number(activeScenario.targetMinPercent),
-        targetMaxPercent: Number(activeScenario.targetMaxPercent),
-      }),
+      spousalSupportAvailable
+        ? postJson('/api/calculate/spousal-support', {
+            ...payload,
+            ...(activeScenario.useSeparateSpousalIncomes && activeScenario.payorSpousalIncome !== ''
+              ? { payorSpousalIncome: Number(activeScenario.payorSpousalIncome) }
+              : {}),
+            ...(activeScenario.useSeparateSpousalIncomes && activeScenario.recipientSpousalIncome !== ''
+              ? { recipientSpousalIncome: Number(activeScenario.recipientSpousalIncome) }
+              : {}),
+            ...(activeScenario.fixedTotalSupportAnnual !== ''
+              ? { fixedTotalSupportAnnual: Number(activeScenario.fixedTotalSupportAnnual) }
+              : {}),
+            targetMinPercent: Number(activeScenario.targetMinPercent),
+            targetMaxPercent: Number(activeScenario.targetMaxPercent),
+          })
+        : Promise.resolve(null),
     ])
 
     if (requestId !== requestSequence.current) {
@@ -879,7 +885,13 @@ function App() {
       setChildError(childResponse.reason.message)
     }
 
-    if (spousalResponse.status === 'fulfilled') {
+    if (!spousalSupportAvailable) {
+      setSpousalResult(null)
+      setSpousalError(
+        metadata?.spousalSupportAssumptions ??
+          'Spousal support is currently available only for British Columbia.',
+      )
+    } else if (spousalResponse.status === 'fulfilled') {
       setSpousalResult(spousalResponse.value)
     } else {
       setSpousalResult(null)
@@ -1207,12 +1219,7 @@ function App() {
             <button
               type="button"
               className="data-table__cell-button"
-              onDoubleClick={() =>
-                beginGrossIncomeEdit(
-                  scenario.useSeparateSpousalIncomes ? 'payorSpousalIncome' : 'payorIncome',
-                  payorGrossIncome,
-                )
-              }
+              onDoubleClick={() => beginGrossIncomeEdit('payorIncome', payorGrossIncome)}
             >
               <CurrencyCell value={payorValue / scale} signed={signed} />
             </button>
@@ -1256,10 +1263,7 @@ function App() {
               type="button"
               className="data-table__cell-button"
               onDoubleClick={() =>
-                beginGrossIncomeEdit(
-                  scenario.useSeparateSpousalIncomes ? 'recipientSpousalIncome' : 'recipientIncome',
-                  recipientGrossIncome,
-                )
+                beginGrossIncomeEdit('recipientIncome', recipientGrossIncome)
               }
             >
               <CurrencyCell value={recipientValue / scale} signed={signed} />
@@ -1275,7 +1279,7 @@ function App() {
       <header className="toolbar">
         <div>
           <h1>Canadian Support Calculator</h1>
-          <p>British Columbia child support and spousal support estimates.</p>
+          <p>Child support for all non-Quebec jurisdictions. Spousal support currently British Columbia only.</p>
         </div>
       </header>
 
@@ -1293,7 +1297,11 @@ function App() {
                     value={scenario.jurisdiction}
                     onChange={handleScenarioChange}
                   >
-                    <option value="BC">British Columbia</option>
+                    {(metadata?.jurisdictions ?? [{ code: 'BC', name: 'British Columbia' }]).map((jurisdiction) => (
+                      <option key={jurisdiction.code} value={jurisdiction.code}>
+                        {jurisdiction.name}
+                      </option>
+                    ))}
                   </select>
                 </label>
 
@@ -1651,7 +1659,6 @@ function App() {
             </div>
 
             {childError ? <p className="error-text">{childError}</p> : null}
-            {spousalError ? <p className="error-text">{spousalError}</p> : null}
 
             {childResult || spousalResult ? (
               <div

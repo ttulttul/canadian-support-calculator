@@ -13,10 +13,27 @@ def test_metadata(client):
     payload = response.get_json()
 
     assert response.status_code == 200
-    assert payload["jurisdictions"] == [{"code": "BC", "name": "British Columbia"}]
+    assert payload["jurisdictions"] == [
+        {"code": "AB", "name": "Alberta"},
+        {"code": "BC", "name": "British Columbia"},
+        {"code": "MB", "name": "Manitoba"},
+        {"code": "NB", "name": "New Brunswick"},
+        {"code": "NL", "name": "Newfoundland and Labrador"},
+        {"code": "NS", "name": "Nova Scotia"},
+        {"code": "NT", "name": "Northwest Territories"},
+        {"code": "NU", "name": "Nunavut"},
+        {"code": "ON", "name": "Ontario"},
+        {"code": "PE", "name": "Prince Edward Island"},
+        {"code": "SK", "name": "Saskatchewan"},
+        {"code": "YT", "name": "Yukon"},
+    ]
+    assert payload["spousalSupportJurisdictions"] == [
+        {"code": "BC", "name": "British Columbia"}
+    ]
     assert payload["supportedChildren"] == [1, 2, 3, 4, 5, 6, 7]
     assert payload["defaultTaxYear"] == 2023
     assert "shared-custody" in payload["benefitAssumptions"]
+    assert "British Columbia" in payload["spousalSupportAssumptions"]
 
 
 def test_child_support_route(client):
@@ -39,6 +56,24 @@ def test_child_support_route(client):
     assert payload["taxYear"] == 2025
 
 
+def test_child_support_route_supports_ontario(client):
+    response = client.post(
+        "/api/calculate/child-support",
+        json={
+            "jurisdiction": "ON",
+            "children": 3,
+            "taxYear": 2025,
+            "payorIncome": 200000,
+            "recipientIncome": 54078.54,
+        },
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["jurisdiction"] == "ON"
+    assert payload["payorMonthly"] == approx(3428.0, rel=1e-4)
+
+
 def test_spousal_support_rejects_invalid_target_range(client):
     response = client.post(
         "/api/calculate/spousal-support",
@@ -54,6 +89,26 @@ def test_spousal_support_rejects_invalid_target_range(client):
 
     assert response.status_code == 400
     assert response.get_json()["error"] == "'targetMinPercent' must be less than 'targetMaxPercent'."
+
+
+def test_spousal_support_rejects_non_bc_jurisdiction(client):
+    response = client.post(
+        "/api/calculate/spousal-support",
+        json={
+            "jurisdiction": "ON",
+            "children": 2,
+            "payorIncome": 244658,
+            "recipientIncome": 30600,
+            "targetMinPercent": 40,
+            "targetMaxPercent": 46,
+        },
+    )
+
+    assert response.status_code == 400
+    assert (
+        response.get_json()["error"]
+        == "Spousal support is currently supported only for British Columbia."
+    )
 
 
 def test_spousal_support_route_accepts_tax_year(client):

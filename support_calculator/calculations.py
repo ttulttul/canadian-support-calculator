@@ -31,14 +31,16 @@ def calculate_child_support_breakdown(
         direction = "recipient_to_payor"
 
     logger.debug(
-        "Child support breakdown calculated: children=%s payor=%s recipient=%s net=%s",
+        "Child support breakdown calculated: jurisdiction=%s children=%s payor=%s recipient=%s net=%s",
+        active_table.jurisdiction_code,
         num_children,
         payor_income,
         recipient_income,
         net_monthly,
     )
     return {
-        "jurisdiction": "BC",
+        "jurisdiction": active_table.jurisdiction_code,
+        "jurisdictionName": active_table.jurisdiction_name,
         "children": num_children,
         "payorIncome": payor_income,
         "recipientIncome": recipient_income,

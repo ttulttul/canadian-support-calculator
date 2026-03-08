@@ -3,8 +3,31 @@ from pytest import approx
 from support_calculator.benefits import calculate_shared_custody_benefits
 from support_calculator.calculations import calculate_child_support_breakdown
 from support_calculator.spousal_support import calculate_spousal_support_estimate
-from support_calculator.tables import load_default_child_support_table
+from support_calculator.tables import (
+    load_default_child_support_registry,
+    load_default_child_support_table,
+)
 from support_calculator.tax import calculate_bc_tax_approx
+
+
+def test_child_support_registry_loads_all_non_quebec_jurisdictions():
+    registry = load_default_child_support_registry()
+
+    assert registry.supported_jurisdictions() == [
+        {"code": "AB", "name": "Alberta"},
+        {"code": "BC", "name": "British Columbia"},
+        {"code": "MB", "name": "Manitoba"},
+        {"code": "NB", "name": "New Brunswick"},
+        {"code": "NL", "name": "Newfoundland and Labrador"},
+        {"code": "NS", "name": "Nova Scotia"},
+        {"code": "NT", "name": "Northwest Territories"},
+        {"code": "NU", "name": "Nunavut"},
+        {"code": "ON", "name": "Ontario"},
+        {"code": "PE", "name": "Prince Edward Island"},
+        {"code": "SK", "name": "Saskatchewan"},
+        {"code": "YT", "name": "Yukon"},
+    ]
+    assert registry.supported_children() == [1, 2, 3, 4, 5, 6, 7]
 
 
 def test_child_support_table_amount_matches_expected_example():
@@ -13,6 +36,16 @@ def test_child_support_table_amount_matches_expected_example():
     assert table.amount(3, 200000) == approx(3582.0, rel=1e-4)
     assert table.amount(3, 54078.54) == approx(1106.0, rel=1e-4)
     assert table.amount(7, 200000) == approx(5297.0, rel=1e-4)
+
+
+def test_child_support_tables_vary_by_jurisdiction():
+    alberta_table = load_default_child_support_table("AB")
+    ontario_table = load_default_child_support_table("ON")
+    newfoundland_table = load_default_child_support_table("NL")
+
+    assert alberta_table.amount(3, 200000) == approx(3594.0, rel=1e-4)
+    assert ontario_table.amount(3, 200000) == approx(3428.0, rel=1e-4)
+    assert newfoundland_table.amount(3, 200000) == approx(3442.0, rel=1e-4)
 
 
 def test_child_support_breakdown_returns_direction_and_annual_values():

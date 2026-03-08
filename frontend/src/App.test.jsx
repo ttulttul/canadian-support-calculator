@@ -168,14 +168,30 @@ describe('App', () => {
     globalThis.fetch = vi.fn((url, options) => {
       if (url === '/api/metadata') {
         return mockResponse({
-          jurisdictions: [{ code: 'BC', name: 'British Columbia' }],
+          jurisdictions: [
+            { code: 'AB', name: 'Alberta' },
+            { code: 'BC', name: 'British Columbia' },
+            { code: 'MB', name: 'Manitoba' },
+            { code: 'NB', name: 'New Brunswick' },
+            { code: 'NL', name: 'Newfoundland and Labrador' },
+            { code: 'NS', name: 'Nova Scotia' },
+            { code: 'NT', name: 'Northwest Territories' },
+            { code: 'NU', name: 'Nunavut' },
+            { code: 'ON', name: 'Ontario' },
+            { code: 'PE', name: 'Prince Edward Island' },
+            { code: 'SK', name: 'Saskatchewan' },
+            { code: 'YT', name: 'Yukon' },
+          ],
+          spousalSupportJurisdictions: [{ code: 'BC', name: 'British Columbia' }],
           supportedChildren: [1, 2, 3, 4, 5, 6, 7],
           supportedChildrenNote: 'Six and seven children use the federal six-or-more table.',
           defaultTaxYear: 2023,
           disclaimer:
-            'Child support uses the bundled 2017 BC simplified federal table. Spousal support uses annualized shared-custody family benefits and credits.',
+            'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support currently uses an indexed approximation of the 2023 combined BC tax model plus annualized shared-custody family benefits and credits.',
           benefitAssumptions:
             'Benefit estimates assume both parents are single households in a shared-custody offset scenario.',
+          spousalSupportAssumptions:
+            'Spousal support is currently available only for British Columbia in this version.',
         })
       }
 
@@ -208,7 +224,7 @@ describe('App', () => {
     expect(await screen.findByText('Canadian Support Calculator')).toBeInTheDocument()
     expect(
       await screen.findByText(
-        'Child support uses the bundled 2017 BC simplified federal table. Spousal support uses annualized shared-custody family benefits and credits.',
+        'Child support uses bundled 2017 federal tables for all non-Quebec provinces and territories. Spousal support currently uses an indexed approximation of the 2023 combined BC tax model plus annualized shared-custody family benefits and credits.',
       ),
     ).toBeInTheDocument()
     expect(
@@ -459,6 +475,32 @@ describe('App', () => {
     expect(finalSpousalPayload.payorSpousalIncome).toBeUndefined()
     expect(finalSpousalPayload.recipientSpousalIncome).toBeUndefined()
     expect(await screen.findAllByText('$244,000')).not.toHaveLength(0)
+  })
+
+  it('supports non-BC child support while skipping the BC-only spousal request', async () => {
+    render(<App />)
+
+    await screen.findByRole('table', { name: 'Net income calculation' })
+    const initialSpousalCallCount = globalThis.fetch.mock.calls.filter(
+      ([url]) => url === '/api/calculate/spousal-support',
+    ).length
+
+    fireEvent.change(screen.getByLabelText('Jurisdiction'), { target: { value: 'ON' } })
+
+    await waitFor(() => {
+      expect(screen.getByText('Spousal support is currently available only for British Columbia in this version.')).toBeInTheDocument()
+    })
+
+    const childSupportCalls = globalThis.fetch.mock.calls.filter(
+      ([url]) => url === '/api/calculate/child-support',
+    )
+    const latestChildPayload = JSON.parse(childSupportCalls.at(-1)[1].body)
+    expect(latestChildPayload.jurisdiction).toBe('ON')
+
+    const spousalCallCount = globalThis.fetch.mock.calls.filter(
+      ([url]) => url === '/api/calculate/spousal-support',
+    ).length
+    expect(spousalCallCount).toBe(initialSpousalCallCount)
   })
 
   it('can force a fixed total gross support amount', async () => {

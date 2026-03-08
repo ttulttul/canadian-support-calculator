@@ -4,7 +4,7 @@ from pathlib import Path
 from flask import Flask, abort, jsonify, send_from_directory
 
 from .api import api_blueprint
-from .tables import load_default_child_support_table
+from .tables import load_default_child_support_registry, load_default_child_support_table
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +20,7 @@ def create_app(config: dict | None = None) -> Flask:
     app = Flask(__name__)
     app.config["JSON_SORT_KEYS"] = False
     app.config["FRONTEND_DIST"] = frontend_dist
+    app.config["CHILD_SUPPORT_TABLES"] = load_default_child_support_registry()
     app.config["CHILD_SUPPORT_TABLE"] = load_default_child_support_table()
 
     if config:
