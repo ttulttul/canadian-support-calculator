@@ -110,3 +110,31 @@ def test_spousal_support_route_accepts_separate_spousal_incomes(client):
     assert payload["childSupport"]["recipientIncome"] == 30600
     assert payload["ndiChildSupport"]["payorIncome"] == 190000
     assert payload["ndiChildSupport"]["recipientIncome"] == 45000
+
+
+def test_spousal_support_route_accepts_fixed_total_support(client):
+    response = client.post(
+        "/api/calculate/spousal-support",
+        json={
+            "jurisdiction": "BC",
+            "children": 2,
+            "taxYear": 2025,
+            "payorIncome": 244658,
+            "recipientIncome": 30600,
+            "payorSpousalIncome": 190000,
+            "recipientSpousalIncome": 45000,
+            "fixedTotalSupportAnnual": 50000,
+            "targetMinPercent": 40,
+            "targetMaxPercent": 46,
+        },
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["fixedTotalSupportAnnual"] == 50000
+    assert payload["iterations"] == 1
+    assert payload["ndiChildSupport"] == payload["childSupport"]
+    assert payload["estimatedSpousalSupportAnnual"] == approx(
+        50000 - payload["childSupport"]["netAnnual"],
+        rel=1e-4,
+    )

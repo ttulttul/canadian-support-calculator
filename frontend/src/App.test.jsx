@@ -12,8 +12,45 @@ function mockResponse(body, ok = true) {
 
 function buildSpousalResponse(payload) {
   const usingAlternatePayorIncome = payload.payorSpousalIncome === 175000
+  const usingFixedTotalSupport = payload.fixedTotalSupportAnnual === 50000
   const payorSpousalIncome = payload.payorSpousalIncome ?? payload.payorIncome
   const recipientSpousalIncome = payload.recipientSpousalIncome ?? payload.recipientIncome
+
+  if (usingFixedTotalSupport) {
+    return {
+      estimatedSpousalSupportMonthly: 1383.71,
+      estimatedSpousalSupportAnnual: 16604.48,
+      taxYear: payload.taxYear,
+      children: payload.children,
+      childrenUnderSix: payload.childrenUnderSix,
+      payorIncome: payload.payorIncome,
+      recipientIncome: payload.recipientIncome,
+      payorSpousalIncome,
+      recipientSpousalIncome,
+      fixedTotalSupportAnnual: 50000,
+      recipientSharePercent: 41.2,
+      iterations: 1,
+      actualNetIncomePayor: 118679.95,
+      actualNetIncomeRecipient: 73174.67,
+      ndiPayor: 102500.12,
+      ndiRecipient: 72844.5,
+      childSupport: {
+        netAnnual: 33395.52,
+      },
+      ndiChildSupport: {
+        netAnnual: 33395.52,
+      },
+      history: [
+        {
+          iteration: 0,
+          spousalSupportAnnual: 16604.48,
+          recipientSharePercent: 41.2,
+          ndiPayor: 102500.12,
+          ndiRecipient: 72844.5,
+        },
+      ],
+    }
+  }
 
   if (usingAlternatePayorIncome) {
     return {
@@ -406,5 +443,32 @@ describe('App', () => {
       within(screen.getByRole('table', { name: 'Net disposable income' })).getByText('$23,532'),
     ).toBeInTheDocument()
     expect(await screen.findAllByText('$0')).not.toHaveLength(0)
+  })
+
+  it('can force a fixed total gross support amount', async () => {
+    render(<App />)
+
+    await screen.findByRole('table', { name: 'Net income calculation' })
+    const initialFetchCount = globalThis.fetch.mock.calls.length
+
+    fireEvent.change(screen.getByLabelText('Fixed total gross support (annual)'), {
+      target: { value: '50000' },
+    })
+
+    await waitFor(() => {
+      expect(globalThis.fetch.mock.calls.length).toBeGreaterThan(initialFetchCount)
+    })
+
+    const spousalSupportCalls = globalThis.fetch.mock.calls.filter(
+      ([url]) => url === '/api/calculate/spousal-support',
+    )
+    const latestSpousalPayload = JSON.parse(spousalSupportCalls.at(-1)[1].body)
+
+    expect(latestSpousalPayload.fixedTotalSupportAnnual).toBe(50000)
+    expect(await screen.findByText('$16,604')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Show Details' }))
+    expect(await screen.findByText('Fixed total gross support')).toBeInTheDocument()
+    expect(await screen.findByText('$50,000')).toBeInTheDocument()
   })
 })

@@ -151,6 +151,7 @@ def spousal_support():
             recipient_income=_require_number(payload, "recipientIncome"),
             payor_spousal_income=_optional_number(payload, "payorSpousalIncome"),
             recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
+            fixed_total_support_annual=_optional_number(payload, "fixedTotalSupportAnnual"),
             num_children=_require_integer(payload, "children"),
             children_under_six=_optional_children_under_six(payload),
             tax_year=_optional_tax_year(payload),

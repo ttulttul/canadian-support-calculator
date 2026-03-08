@@ -11,6 +11,7 @@ const defaultScenario = {
   useSeparateSpousalIncomes: false,
   payorSpousalIncome: '',
   recipientSpousalIncome: '',
+  fixedTotalSupportAnnual: '',
   targetMinPercent: '40',
   targetMaxPercent: '46',
 }
@@ -859,6 +860,9 @@ function App() {
         ...(activeScenario.useSeparateSpousalIncomes && activeScenario.recipientSpousalIncome !== ''
           ? { recipientSpousalIncome: Number(activeScenario.recipientSpousalIncome) }
           : {}),
+        ...(activeScenario.fixedTotalSupportAnnual !== ''
+          ? { fixedTotalSupportAnnual: Number(activeScenario.fixedTotalSupportAnnual) }
+          : {}),
         targetMinPercent: Number(activeScenario.targetMinPercent),
         targetMaxPercent: Number(activeScenario.targetMaxPercent),
       }),
@@ -1505,6 +1509,19 @@ function App() {
                         onChange={handleScenarioChange}
                       />
                     </label>
+
+                    <label>
+                      <span className="form-label-text">Fixed total gross support (annual)</span>
+                      <input
+                        aria-label="Fixed total gross support (annual)"
+                        name="fixedTotalSupportAnnual"
+                        type="number"
+                        min="0"
+                        step="100"
+                        value={scenario.fixedTotalSupportAnnual}
+                        onChange={handleScenarioChange}
+                      />
+                    </label>
                   </div>
                 </div>
 
@@ -1701,6 +1718,14 @@ function App() {
                             label: 'Estimated annual spousal support',
                             value: formatCurrency(spousalResult.estimatedSpousalSupportAnnual),
                           },
+                          ...(spousalResult.fixedTotalSupportAnnual != null
+                            ? [
+                                {
+                                  label: 'Fixed total gross support',
+                                  value: formatCurrency(spousalResult.fixedTotalSupportAnnual),
+                                },
+                              ]
+                            : []),
                           {
                             label: 'Recipient share of NDI',
                             value: formatPercent(spousalResult.recipientSharePercent),

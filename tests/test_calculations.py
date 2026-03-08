@@ -109,6 +109,36 @@ def test_spousal_support_estimate_can_use_separate_spousal_incomes():
     )
 
 
+def test_spousal_support_estimate_can_use_fixed_total_support():
+    result = calculate_spousal_support_estimate(
+        payor_income=244658,
+        recipient_income=30600,
+        payor_spousal_income=190000,
+        recipient_spousal_income=45000,
+        fixed_total_support_annual=50_000,
+        num_children=2,
+        children_under_six=0,
+        tax_year=2025,
+    )
+
+    assert result["fixedTotalSupportAnnual"] == 50_000
+    assert result["iterations"] == 1
+    assert result["history"][0]["iteration"] == 0
+    assert result["ndiChildSupport"] == result["childSupport"]
+    assert result["estimatedSpousalSupportAnnual"] == approx(
+        50_000 - result["childSupport"]["netAnnual"],
+        rel=1e-4,
+    )
+    assert result["actualNetIncomePayor"] == approx(
+        result["payorIncome"]
+        - result["payorTax"]
+        - result["estimatedSpousalSupportAnnual"]
+        - result["childSupport"]["netAnnual"]
+        + result["benefits"]["payor"]["totalAnnual"],
+        rel=1e-4,
+    )
+
+
 def test_shared_custody_benefits_include_low_income_credits():
     result = calculate_shared_custody_benefits(
         payor_adjusted_family_net_income=40_000,

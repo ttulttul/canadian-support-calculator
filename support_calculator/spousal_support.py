@@ -14,6 +14,7 @@ def calculate_spousal_support_estimate(
     recipient_income: float,
     payor_spousal_income: float | None = None,
     recipient_spousal_income: float | None = None,
+    fixed_total_support_annual: float | None = None,
     num_children: int,
     tax_year: int,
     children_under_six: int = 0,
@@ -69,10 +70,11 @@ def calculate_spousal_support_estimate(
         num_children,
     )
 
-    spousal_support_annual = 0.0
-    history: list[dict] = []
-
-    for iteration in range(max_iterations):
+    def calculate_financial_state(
+        *,
+        spousal_support_annual: float,
+        net_child_support_annual: float,
+    ) -> dict:
         current_payor_taxable_income = max(payor_income - spousal_support_annual, 0.0)
         current_recipient_taxable_income = recipient_income + spousal_support_annual
         payor_tax = calculate_bc_tax_approx(
@@ -95,61 +97,124 @@ def calculate_spousal_support_estimate(
             active_payor_spousal_income
             - payor_tax
             - spousal_support_annual
-            - ndi_net_child_support_annual
+            - net_child_support_annual
             + payor_benefits
         )
         ndi_recipient = (
             active_recipient_spousal_income
             - recipient_tax
             + spousal_support_annual
-            + ndi_net_child_support_annual
+            + net_child_support_annual
             + recipient_benefits
         )
         total_ndi = ndi_payor + ndi_recipient
         recipient_share = 50.0 if total_ndi <= 0 else (ndi_recipient / total_ndi) * 100.0
 
-        snapshot = {
-            "iteration": iteration,
-            "spousalSupportAnnual": round(spousal_support_annual, 2),
-            "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
-            "payorBenefitsAnnual": round(payor_benefits, 2),
-            "recipientBenefitsAnnual": round(recipient_benefits, 2),
-            "ndiPayor": round(ndi_payor, 2),
-            "ndiRecipient": round(ndi_recipient, 2),
-            "recipientSharePercent": round(recipient_share, 2),
-            "step": round(step, 2),
+        return {
+            "payorTaxableIncome": current_payor_taxable_income,
+            "recipientTaxableIncome": current_recipient_taxable_income,
+            "payorTax": payor_tax,
+            "recipientTax": recipient_tax,
+            "benefits": benefits,
+            "payorBenefitsAnnual": payor_benefits,
+            "recipientBenefitsAnnual": recipient_benefits,
+            "ndiPayor": ndi_payor,
+            "ndiRecipient": ndi_recipient,
+            "recipientSharePercent": recipient_share,
         }
-        history.append(snapshot)
-        logger.debug("Spousal support iteration: %s", snapshot)
 
-        inside_band = target_min_percent <= recipient_share <= target_max_percent
-        close_to_midpoint = abs(recipient_share - target_midpoint) <= tolerance
-        if inside_band and (close_to_midpoint or step <= 1.0):
-            logger.info("Spousal support estimate converged at iteration %s.", iteration)
-            break
+    spousal_support_annual = 0.0
+    history: list[dict] = []
 
-        if recipient_share < target_min_percent:
-            spousal_support_annual += step
+    if fixed_total_support_annual is None:
+        for iteration in range(max_iterations):
+            financial_state = calculate_financial_state(
+                spousal_support_annual=spousal_support_annual,
+                net_child_support_annual=ndi_net_child_support_annual,
+            )
+            recipient_share = financial_state["recipientSharePercent"]
+
+            snapshot = {
+                "iteration": iteration,
+                "spousalSupportAnnual": round(spousal_support_annual, 2),
+                "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
+                "payorBenefitsAnnual": round(financial_state["payorBenefitsAnnual"], 2),
+                "recipientBenefitsAnnual": round(
+                    financial_state["recipientBenefitsAnnual"], 2
+                ),
+                "ndiPayor": round(financial_state["ndiPayor"], 2),
+                "ndiRecipient": round(financial_state["ndiRecipient"], 2),
+                "recipientSharePercent": round(recipient_share, 2),
+                "step": round(step, 2),
+            }
+            history.append(snapshot)
+            logger.debug("Spousal support iteration: %s", snapshot)
+
+            inside_band = target_min_percent <= recipient_share <= target_max_percent
+            close_to_midpoint = abs(recipient_share - target_midpoint) <= tolerance
+            if inside_band and (close_to_midpoint or step <= 1.0):
+                logger.info("Spousal support estimate converged at iteration %s.", iteration)
+                break
+
+            if recipient_share < target_min_percent:
+                spousal_support_annual += step
+            else:
+                spousal_support_annual = max(spousal_support_annual - step, 0.0)
+
+            if len(history) > 1:
+                previous_share = history[-2]["recipientSharePercent"]
+                crossed_midpoint = (
+                    (previous_share - target_midpoint)
+                    * (recipient_share - target_midpoint)
+                ) < 0
+                if crossed_midpoint or inside_band:
+                    step = max(1.0, step / 2.0)
         else:
-            spousal_support_annual = max(spousal_support_annual - step, 0.0)
+            logger.warning("Maximum iterations reached before convergence.")
 
-        if len(history) > 1:
-            previous_share = history[-2]["recipientSharePercent"]
-            crossed_midpoint = (
-                (previous_share - target_midpoint) * (recipient_share - target_midpoint)
-            ) < 0
-            if crossed_midpoint or inside_band:
-                step = max(1.0, step / 2.0)
+        final_snapshot = history[-1]
+        estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
+        final_financial_state = calculate_financial_state(
+            spousal_support_annual=estimated_spousal_support_annual,
+            net_child_support_annual=ndi_net_child_support_annual,
+        )
     else:
-        logger.warning("Maximum iterations reached before convergence.")
+        if fixed_total_support_annual < actual_net_child_support_annual:
+            raise ValueError(
+                "'fixedTotalSupportAnnual' must be at least the actual annual child support amount."
+            )
 
-    final_snapshot = history[-1]
-    estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
-    payor_taxable_income = max(
-        payor_income - estimated_spousal_support_annual,
-        0.0,
-    )
-    recipient_taxable_income = recipient_income + estimated_spousal_support_annual
+        logger.info(
+            "Using fixed total support override: total=%s actual_child_support=%s",
+            fixed_total_support_annual,
+            actual_net_child_support_annual,
+        )
+        ndi_child_support = child_support
+        ndi_net_child_support_annual = actual_net_child_support_annual
+        estimated_spousal_support_annual = (
+            fixed_total_support_annual - actual_net_child_support_annual
+        )
+        final_financial_state = calculate_financial_state(
+            spousal_support_annual=estimated_spousal_support_annual,
+            net_child_support_annual=ndi_net_child_support_annual,
+        )
+        final_snapshot = {
+            "iteration": 0,
+            "spousalSupportAnnual": round(estimated_spousal_support_annual, 2),
+            "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
+            "payorBenefitsAnnual": round(final_financial_state["payorBenefitsAnnual"], 2),
+            "recipientBenefitsAnnual": round(
+                final_financial_state["recipientBenefitsAnnual"], 2
+            ),
+            "ndiPayor": round(final_financial_state["ndiPayor"], 2),
+            "ndiRecipient": round(final_financial_state["ndiRecipient"], 2),
+            "recipientSharePercent": round(
+                final_financial_state["recipientSharePercent"], 2
+            ),
+            "step": 0.0,
+        }
+        history.append(final_snapshot)
+
     payor_tax_before_support_deduction = calculate_bc_tax_approx(
         payor_income,
         tax_year=tax_year,
@@ -158,15 +223,11 @@ def calculate_spousal_support_estimate(
         recipient_income,
         tax_year=tax_year,
     )
-    payor_tax = calculate_bc_tax_approx(payor_taxable_income, tax_year=tax_year)
-    recipient_tax = calculate_bc_tax_approx(recipient_taxable_income, tax_year=tax_year)
-    benefits = calculate_shared_custody_benefits(
-        payor_adjusted_family_net_income=payor_taxable_income,
-        recipient_adjusted_family_net_income=recipient_taxable_income,
-        num_children=num_children,
-        children_under_six=children_under_six,
-        tax_year=tax_year,
-    )
+    payor_taxable_income = final_financial_state["payorTaxableIncome"]
+    recipient_taxable_income = final_financial_state["recipientTaxableIncome"]
+    payor_tax = final_financial_state["payorTax"]
+    recipient_tax = final_financial_state["recipientTax"]
+    benefits = final_financial_state["benefits"]
     payor_tax_deduction_benefit = max(payor_tax_before_support_deduction - payor_tax, 0.0)
     recipient_tax_support_cost = max(recipient_tax - recipient_tax_before_support_inclusion, 0.0)
     actual_net_income_payor = (
@@ -192,6 +253,9 @@ def calculate_spousal_support_estimate(
         "recipientIncome": recipient_income,
         "payorSpousalIncome": active_payor_spousal_income,
         "recipientSpousalIncome": active_recipient_spousal_income,
+        "fixedTotalSupportAnnual": (
+            None if fixed_total_support_annual is None else round(fixed_total_support_annual, 2)
+        ),
         "targetRangePercent": {
             "min": round(target_min_percent, 2),
             "max": round(target_max_percent, 2),
