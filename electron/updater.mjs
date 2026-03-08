@@ -1,5 +1,17 @@
 import process from 'node:process'
 
+export function resolveAutoUpdaterModule(updaterModule) {
+  if (updaterModule?.autoUpdater) {
+    return updaterModule.autoUpdater
+  }
+
+  if (updaterModule?.default?.autoUpdater) {
+    return updaterModule.default.autoUpdater
+  }
+
+  throw new Error('Unable to resolve autoUpdater from the electron-updater module.')
+}
+
 export function shouldEnableAutoUpdates({
   isPackaged,
   platform = process.platform,

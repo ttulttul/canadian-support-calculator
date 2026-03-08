@@ -1,5 +1,5 @@
 import { app, BrowserWindow, Menu, dialog } from 'electron'
-import { autoUpdater } from 'electron-updater'
+import electronUpdaterModule from 'electron-updater'
 import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -11,7 +11,12 @@ import {
   resolveBackendBaseUrl,
   waitForBackend,
 } from './backend-runtime.mjs'
-import { checkForUpdates, shouldEnableAutoUpdates, wireAutoUpdater } from './updater.mjs'
+import {
+  checkForUpdates,
+  resolveAutoUpdaterModule,
+  shouldEnableAutoUpdates,
+  wireAutoUpdater,
+} from './updater.mjs'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const projectRoot = path.resolve(__dirname, '..')
@@ -20,6 +25,7 @@ const rendererUrl = process.env.CSC_DESKTOP_RENDERER_URL ?? 'http://127.0.0.1:51
 let mainWindow = null
 let backendProcess = null
 let backendBaseUrl = ''
+const autoUpdater = resolveAutoUpdaterModule(electronUpdaterModule)
 
 function isDesktopDevMode() {
   return process.env.CSC_DESKTOP_DEV === '1'

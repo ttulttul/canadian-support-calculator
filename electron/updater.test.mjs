@@ -1,7 +1,12 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { checkForUpdates, shouldEnableAutoUpdates, wireAutoUpdater } from './updater.mjs'
+import {
+  checkForUpdates,
+  resolveAutoUpdaterModule,
+  shouldEnableAutoUpdates,
+  wireAutoUpdater,
+} from './updater.mjs'
 
 test('shouldEnableAutoUpdates only allows packaged macOS builds', () => {
   assert.equal(shouldEnableAutoUpdates({ isPackaged: true, platform: 'darwin' }), true)
@@ -23,6 +28,13 @@ test('checkForUpdates skips updater calls when disabled', async () => {
 
   assert.equal(result, false)
   assert.equal(called, false)
+})
+
+test('resolveAutoUpdaterModule supports CommonJS-style updater exports', () => {
+  const autoUpdater = { checkForUpdates() {} }
+
+  assert.equal(resolveAutoUpdaterModule({ autoUpdater }), autoUpdater)
+  assert.equal(resolveAutoUpdaterModule({ default: { autoUpdater } }), autoUpdater)
 })
 
 test('wireAutoUpdater prompts before installing a downloaded update', async () => {
