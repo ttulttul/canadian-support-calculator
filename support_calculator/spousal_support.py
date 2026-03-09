@@ -11,6 +11,63 @@ from .tax import calculate_equivalent_before_tax_income, calculate_tax_profile
 
 logger = logging.getLogger(__name__)
 
+MIDPOINT_TARGET_SHARE = 43.0
+EQUALIZATION_TARGET_SHARE = 50.0
+
+
+def _duration_metadata(
+    *,
+    relationship_years: float | None,
+    recipient_age_at_separation: float | None,
+    years_until_child_full_time_school: float | None,
+    years_until_child_finishes_high_school: float | None,
+) -> dict:
+    inputs_provided = any(
+        value is not None
+        for value in (
+            relationship_years,
+            recipient_age_at_separation,
+            years_until_child_full_time_school,
+            years_until_child_finishes_high_school,
+        )
+    )
+    if not inputs_provided:
+        return {
+            "formulaType": "with_child_support_shared_custody",
+            "durationType": "indefinite",
+            "minYears": None,
+            "maxYears": None,
+            "inputsProvided": False,
+        }
+
+    relationship_value = 0.0 if relationship_years is None else relationship_years
+    school_years = (
+        0.0 if years_until_child_full_time_school is None else years_until_child_full_time_school
+    )
+    graduation_years = (
+        0.0
+        if years_until_child_finishes_high_school is None
+        else years_until_child_finishes_high_school
+    )
+    minimum_duration = max(relationship_value / 2.0, school_years)
+    maximum_duration = max(relationship_value, graduation_years)
+    if relationship_years is None:
+        minimum_duration = school_years or None
+        maximum_duration = graduation_years or None
+
+    return {
+        "formulaType": "with_child_support_shared_custody",
+        "durationType": "indefinite",
+        "minYears": None if minimum_duration is None else round(minimum_duration, 2),
+        "maxYears": None if maximum_duration is None else round(maximum_duration, 2),
+        "inputsProvided": True,
+        "recipientAgeAtSeparation": (
+            None
+            if recipient_age_at_separation is None
+            else round(recipient_age_at_separation, 2)
+        ),
+    }
+
 
 def calculate_spousal_support_estimate(
     *,
@@ -28,12 +85,26 @@ def calculate_spousal_support_estimate(
     step: float = 500.0,
     tolerance: float = 0.5,
     table: ChildSupportTable | None = None,
+    relationship_years: float | None = None,
+    recipient_age_at_separation: float | None = None,
+    years_until_child_full_time_school: float | None = None,
+    years_until_child_finishes_high_school: float | None = None,
 ) -> dict:
     if payor_income < 0 or recipient_income < 0:
         raise ValueError("Income values must be zero or greater.")
-
     if children_under_six < 0 or children_under_six > num_children:
         raise ValueError("'childrenUnderSix' must be between zero and the total number of children.")
+    if relationship_years is not None and relationship_years < 0:
+        raise ValueError("'relationshipYears' must be zero or greater.")
+    if recipient_age_at_separation is not None and recipient_age_at_separation < 0:
+        raise ValueError("'recipientAgeAtSeparation' must be zero or greater.")
+    if years_until_child_full_time_school is not None and years_until_child_full_time_school < 0:
+        raise ValueError("'yearsUntilChildFullTimeSchool' must be zero or greater.")
+    if (
+        years_until_child_finishes_high_school is not None
+        and years_until_child_finishes_high_school < 0
+    ):
+        raise ValueError("'yearsUntilChildFinishesHighSchool' must be zero or greater.")
 
     target_min, target_max = target_range
     if not 0 < target_min < target_max < 1:
@@ -47,9 +118,7 @@ def calculate_spousal_support_estimate(
         payor_income if payor_spousal_income is None else payor_spousal_income
     )
     active_recipient_spousal_income = (
-        recipient_income
-        if recipient_spousal_income is None
-        else recipient_spousal_income
+        recipient_income if recipient_spousal_income is None else recipient_spousal_income
     )
     child_support = calculate_child_support_breakdown(
         num_children=num_children,
@@ -66,25 +135,23 @@ def calculate_spousal_support_estimate(
         table=active_table,
     )
     actual_net_child_support_annual = child_support["netAnnual"]
-    ndi_net_child_support_annual = ndi_child_support["netAnnual"]
+    formula_payor_child_support_annual = ndi_child_support["payorAnnual"]
+    formula_recipient_child_support_annual = ndi_child_support["recipientAnnual"]
     target_min_percent = target_min * 100.0
     target_max_percent = target_max * 100.0
-    target_midpoint = (target_min_percent + target_max_percent) / 2.0
+    target_midpoint = MIDPOINT_TARGET_SHARE
 
     logger.info(
-        "Starting spousal support estimate: payor=%s recipient=%s spousal_payor=%s spousal_recipient=%s children=%s",
+        "Starting shared-custody SSAG range estimate: payor=%s recipient=%s spousal_payor=%s spousal_recipient=%s children=%s override_child=%s",
         payor_income,
         recipient_income,
         active_payor_spousal_income,
         active_recipient_spousal_income,
         num_children,
+        child_support_override_monthly,
     )
 
-    def calculate_financial_state(
-        *,
-        spousal_support_annual: float,
-        net_child_support_annual: float,
-    ) -> dict:
+    def calculate_financial_state(*, spousal_support_annual: float) -> dict:
         current_payor_taxable_income = max(payor_income - spousal_support_annual, 0.0)
         current_recipient_taxable_income = recipient_income + spousal_support_annual
         payor_tax_profile = calculate_tax_profile(
@@ -110,22 +177,46 @@ def calculate_spousal_support_estimate(
         payor_benefits = benefits["payor"]["totalAnnual"]
         recipient_benefits = benefits["recipient"]["totalAnnual"]
 
-        ndi_payor = (
+        actual_ndi_payor = (
+            payor_income
+            - payor_tax
+            - spousal_support_annual
+            - actual_net_child_support_annual
+            + payor_benefits
+        )
+        actual_ndi_recipient = (
+            recipient_income
+            - recipient_tax
+            + spousal_support_annual
+            + actual_net_child_support_annual
+            + recipient_benefits
+        )
+        formula_ndi_payor = (
             active_payor_spousal_income
             - payor_tax
             - spousal_support_annual
-            - net_child_support_annual
+            - formula_payor_child_support_annual
             + payor_benefits
         )
-        ndi_recipient = (
+        formula_ndi_recipient = (
             active_recipient_spousal_income
             - recipient_tax
             + spousal_support_annual
-            + net_child_support_annual
+            - formula_recipient_child_support_annual
             + recipient_benefits
         )
-        total_ndi = ndi_payor + ndi_recipient
-        recipient_share = 50.0 if total_ndi <= 0 else (ndi_recipient / total_ndi) * 100.0
+        actual_total_ndi = actual_ndi_payor + actual_ndi_recipient
+        formula_total_ndi = formula_ndi_payor + formula_ndi_recipient
+        actual_share = (
+            EQUALIZATION_TARGET_SHARE
+            if actual_total_ndi <= 0
+            else (actual_ndi_recipient / actual_total_ndi) * 100.0
+        )
+        formula_share = (
+            EQUALIZATION_TARGET_SHARE
+            if formula_total_ndi <= 0
+            else (formula_ndi_recipient / formula_total_ndi) * 100.0
+        )
 
         return {
             "payorTaxableIncome": current_payor_taxable_income,
@@ -137,66 +228,113 @@ def calculate_spousal_support_estimate(
             "benefits": benefits,
             "payorBenefitsAnnual": payor_benefits,
             "recipientBenefitsAnnual": recipient_benefits,
-            "ndiPayor": ndi_payor,
-            "ndiRecipient": ndi_recipient,
-            "recipientSharePercent": recipient_share,
+            "actualNdiPayor": actual_ndi_payor,
+            "actualNdiRecipient": actual_ndi_recipient,
+            "actualRecipientSharePercent": actual_share,
+            "formulaNdiPayor": formula_ndi_payor,
+            "formulaNdiRecipient": formula_ndi_recipient,
+            "formulaRecipientSharePercent": formula_share,
         }
 
-    spousal_support_annual = 0.0
-    history: list[dict] = []
+    def snapshot(iteration: int, spousal_support_annual: float, state: dict, current_step: float) -> dict:
+        return {
+            "iteration": iteration,
+            "spousalSupportAnnual": round(spousal_support_annual, 2),
+            "netChildSupportAnnual": round(ndi_child_support["netAnnual"], 2),
+            "payorBenefitsAnnual": round(state["payorBenefitsAnnual"], 2),
+            "recipientBenefitsAnnual": round(state["recipientBenefitsAnnual"], 2),
+            "ndiPayor": round(state["actualNdiPayor"], 2),
+            "ndiRecipient": round(state["actualNdiRecipient"], 2),
+            "recipientSharePercent": round(state["formulaRecipientSharePercent"], 2),
+            "actualRecipientSharePercent": round(state["actualRecipientSharePercent"], 2),
+            "step": round(current_step, 2),
+        }
 
-    if fixed_total_support_annual is None:
+    def solve_support_for_share(
+        *,
+        target_share_percent: float,
+        share_key: str,
+        capture_history: bool,
+    ) -> tuple[float, dict, list[dict]]:
+        lower = 0.0
+        upper = max(active_payor_spousal_income, payor_income, 1.0)
+        lower_state = calculate_financial_state(spousal_support_annual=lower)
+        upper_state = calculate_financial_state(spousal_support_annual=upper)
+        while upper_state[share_key] < target_share_percent and upper < 2_000_000:
+            upper *= 1.5
+            upper_state = calculate_financial_state(spousal_support_annual=upper)
+
+        local_history: list[dict] = []
+        current_step = step
+        previous_delta: float | None = None
+        final_support = lower
+        final_state = lower_state
         for iteration in range(max_iterations):
-            financial_state = calculate_financial_state(
-                spousal_support_annual=spousal_support_annual,
-                net_child_support_annual=ndi_net_child_support_annual,
-            )
-            recipient_share = financial_state["recipientSharePercent"]
+            midpoint = (lower + upper) / 2.0
+            state = calculate_financial_state(spousal_support_annual=midpoint)
+            current_share = state[share_key]
+            delta = current_share - target_share_percent
+            if capture_history:
+                local_history.append(snapshot(iteration, midpoint, state, current_step))
 
-            snapshot = {
-                "iteration": iteration,
-                "spousalSupportAnnual": round(spousal_support_annual, 2),
-                "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
-                "payorBenefitsAnnual": round(financial_state["payorBenefitsAnnual"], 2),
-                "recipientBenefitsAnnual": round(
-                    financial_state["recipientBenefitsAnnual"], 2
-                ),
-                "ndiPayor": round(financial_state["ndiPayor"], 2),
-                "ndiRecipient": round(financial_state["ndiRecipient"], 2),
-                "recipientSharePercent": round(recipient_share, 2),
-                "step": round(step, 2),
-            }
-            history.append(snapshot)
-            logger.debug("Spousal support iteration: %s", snapshot)
-
-            inside_band = target_min_percent <= recipient_share <= target_max_percent
-            close_to_midpoint = abs(recipient_share - target_midpoint) <= tolerance
-            if inside_band and (close_to_midpoint or step <= 1.0):
-                logger.info("Spousal support estimate converged at iteration %s.", iteration)
+            final_support = midpoint
+            final_state = state
+            if abs(delta) <= tolerance or abs(upper - lower) <= 1.0:
                 break
 
-            if recipient_share < target_min_percent:
-                spousal_support_annual += step
+            if delta < 0:
+                lower = midpoint
             else:
-                spousal_support_annual = max(spousal_support_annual - step, 0.0)
+                upper = midpoint
 
-            if len(history) > 1:
-                previous_share = history[-2]["recipientSharePercent"]
-                crossed_midpoint = (
-                    (previous_share - target_midpoint)
-                    * (recipient_share - target_midpoint)
-                ) < 0
-                if crossed_midpoint or inside_band:
-                    step = max(1.0, step / 2.0)
-        else:
-            logger.warning("Maximum iterations reached before convergence.")
+            if previous_delta is not None and (previous_delta * delta) < 0:
+                current_step = max(1.0, current_step / 2.0)
+            previous_delta = delta
 
-        final_snapshot = history[-1]
-        estimated_spousal_support_annual = final_snapshot["spousalSupportAnnual"]
-        final_financial_state = calculate_financial_state(
-            spousal_support_annual=estimated_spousal_support_annual,
-            net_child_support_annual=ndi_net_child_support_annual,
-        )
+        return round(final_support, 2), final_state, local_history
+
+    low_support_annual, low_state, _ = solve_support_for_share(
+        target_share_percent=target_min_percent,
+        share_key="formulaRecipientSharePercent",
+        capture_history=False,
+    )
+    mid_support_annual, mid_state, mid_history = solve_support_for_share(
+        target_share_percent=target_midpoint,
+        share_key="formulaRecipientSharePercent",
+        capture_history=True,
+    )
+    high_support_annual, high_state, _ = solve_support_for_share(
+        target_share_percent=target_max_percent,
+        share_key="formulaRecipientSharePercent",
+        capture_history=False,
+    )
+    equalization_support_annual, equalization_state, _ = solve_support_for_share(
+        target_share_percent=EQUALIZATION_TARGET_SHARE,
+        share_key="actualRecipientSharePercent",
+        capture_history=False,
+    )
+    low_end_extended_to_equalization = equalization_support_annual > low_support_annual
+    if low_end_extended_to_equalization:
+        low_support_annual = equalization_support_annual
+        low_state = equalization_state
+
+    range_results = {
+        "formulaType": "with_child_support_shared_custody",
+        "lowAnnual": round(low_support_annual, 2),
+        "midAnnual": round(mid_support_annual, 2),
+        "highAnnual": round(high_support_annual, 2),
+        "lowMonthly": round(low_support_annual / 12.0, 2),
+        "midMonthly": round(mid_support_annual / 12.0, 2),
+        "highMonthly": round(high_support_annual / 12.0, 2),
+        "lowEndExtendedToEqualization": low_end_extended_to_equalization,
+        "equalizationAnnual": round(equalization_support_annual, 2),
+        "equalizationMonthly": round(equalization_support_annual / 12.0, 2),
+    }
+
+    if fixed_total_support_annual is None:
+        estimated_spousal_support_annual = mid_support_annual
+        final_financial_state = mid_state
+        history = mid_history
     else:
         if fixed_total_support_annual < actual_net_child_support_annual:
             raise ValueError(
@@ -209,30 +347,13 @@ def calculate_spousal_support_estimate(
             actual_net_child_support_annual,
         )
         ndi_child_support = child_support
-        ndi_net_child_support_annual = actual_net_child_support_annual
         estimated_spousal_support_annual = (
             fixed_total_support_annual - actual_net_child_support_annual
         )
         final_financial_state = calculate_financial_state(
-            spousal_support_annual=estimated_spousal_support_annual,
-            net_child_support_annual=ndi_net_child_support_annual,
+            spousal_support_annual=estimated_spousal_support_annual
         )
-        final_snapshot = {
-            "iteration": 0,
-            "spousalSupportAnnual": round(estimated_spousal_support_annual, 2),
-            "netChildSupportAnnual": round(ndi_net_child_support_annual, 2),
-            "payorBenefitsAnnual": round(final_financial_state["payorBenefitsAnnual"], 2),
-            "recipientBenefitsAnnual": round(
-                final_financial_state["recipientBenefitsAnnual"], 2
-            ),
-            "ndiPayor": round(final_financial_state["ndiPayor"], 2),
-            "ndiRecipient": round(final_financial_state["ndiRecipient"], 2),
-            "recipientSharePercent": round(
-                final_financial_state["recipientSharePercent"], 2
-            ),
-            "step": 0.0,
-        }
-        history.append(final_snapshot)
+        history = [snapshot(0, estimated_spousal_support_annual, final_financial_state, 0.0)]
 
     payor_tax_before_support_profile = calculate_tax_profile(
         payor_income,
@@ -246,29 +367,12 @@ def calculate_spousal_support_estimate(
     )
     payor_tax_before_support_deduction = payor_tax_before_support_profile["totalDeductions"]
     recipient_tax_before_support_inclusion = recipient_tax_before_support_profile["totalDeductions"]
-    payor_taxable_income = final_financial_state["payorTaxableIncome"]
-    recipient_taxable_income = final_financial_state["recipientTaxableIncome"]
-    payor_tax_profile = final_financial_state["payorTaxProfile"]
-    recipient_tax_profile = final_financial_state["recipientTaxProfile"]
     payor_tax = final_financial_state["payorTax"]
     recipient_tax = final_financial_state["recipientTax"]
-    benefits = final_financial_state["benefits"]
     payor_tax_deduction_benefit = max(payor_tax_before_support_deduction - payor_tax, 0.0)
     recipient_tax_support_cost = max(recipient_tax - recipient_tax_before_support_inclusion, 0.0)
-    actual_net_income_payor = (
-        payor_income
-        - payor_tax
-        - estimated_spousal_support_annual
-        - actual_net_child_support_annual
-        + benefits["payor"]["totalAnnual"]
-    )
-    actual_net_income_recipient = (
-        recipient_income
-        - recipient_tax
-        + estimated_spousal_support_annual
-        + actual_net_child_support_annual
-        + benefits["recipient"]["totalAnnual"]
-    )
+    actual_net_income_payor = final_financial_state["actualNdiPayor"]
+    actual_net_income_recipient = final_financial_state["actualNdiRecipient"]
     payor_equivalent_before_tax_income = calculate_equivalent_before_tax_income(
         actual_net_income_payor,
         jurisdiction_code=jurisdiction_code,
@@ -279,6 +383,13 @@ def calculate_spousal_support_estimate(
         jurisdiction_code=jurisdiction_code,
         tax_year=tax_year,
     )
+    duration = _duration_metadata(
+        relationship_years=relationship_years,
+        recipient_age_at_separation=recipient_age_at_separation,
+        years_until_child_full_time_school=years_until_child_full_time_school,
+        years_until_child_finishes_high_school=years_until_child_finishes_high_school,
+    )
+
     return {
         "jurisdiction": active_table.jurisdiction_code,
         "jurisdictionName": active_table.jurisdiction_name,
@@ -289,6 +400,22 @@ def calculate_spousal_support_estimate(
         "recipientIncome": recipient_income,
         "payorSpousalIncome": active_payor_spousal_income,
         "recipientSpousalIncome": active_recipient_spousal_income,
+        "relationshipYears": None if relationship_years is None else round(relationship_years, 2),
+        "recipientAgeAtSeparation": (
+            None
+            if recipient_age_at_separation is None
+            else round(recipient_age_at_separation, 2)
+        ),
+        "yearsUntilChildFullTimeSchool": (
+            None
+            if years_until_child_full_time_school is None
+            else round(years_until_child_full_time_school, 2)
+        ),
+        "yearsUntilChildFinishesHighSchool": (
+            None
+            if years_until_child_finishes_high_school is None
+            else round(years_until_child_finishes_high_school, 2)
+        ),
         "childSupportOverrideMonthly": (
             None
             if child_support_override_monthly is None
@@ -301,17 +428,16 @@ def calculate_spousal_support_estimate(
             "min": round(target_min_percent, 2),
             "max": round(target_max_percent, 2),
         },
-        "estimatedSpousalSupportAnnual": estimated_spousal_support_annual,
-        "estimatedSpousalSupportMonthly": round(
-            estimated_spousal_support_annual / 12.0,
-            2,
-        ),
+        "spousalSupportRange": range_results,
+        "duration": duration,
+        "estimatedSpousalSupportAnnual": round(estimated_spousal_support_annual, 2),
+        "estimatedSpousalSupportMonthly": round(estimated_spousal_support_annual / 12.0, 2),
         "childSupport": child_support,
         "ndiChildSupport": ndi_child_support,
-        "payorTaxableIncome": round(payor_taxable_income, 2),
-        "recipientTaxableIncome": round(recipient_taxable_income, 2),
-        "payorTaxProfile": payor_tax_profile,
-        "recipientTaxProfile": recipient_tax_profile,
+        "payorTaxableIncome": round(final_financial_state["payorTaxableIncome"], 2),
+        "recipientTaxableIncome": round(final_financial_state["recipientTaxableIncome"], 2),
+        "payorTaxProfile": final_financial_state["payorTaxProfile"],
+        "recipientTaxProfile": final_financial_state["recipientTaxProfile"],
         "payorTaxBeforeSupportProfile": payor_tax_before_support_profile,
         "payorTaxBeforeSupportDeduction": round(payor_tax_before_support_deduction, 2),
         "payorTax": round(payor_tax, 2),
@@ -320,16 +446,24 @@ def calculate_spousal_support_estimate(
         "recipientTaxBeforeSupportInclusion": round(recipient_tax_before_support_inclusion, 2),
         "recipientTax": round(recipient_tax, 2),
         "recipientTaxSupportCost": round(recipient_tax_support_cost, 2),
-        "benefits": benefits,
+        "benefits": final_financial_state["benefits"],
         "actualNetIncomePayor": round(actual_net_income_payor, 2),
         "actualNetIncomeRecipient": round(actual_net_income_recipient, 2),
         "payorEquivalentBeforeTaxIncome": round(payor_equivalent_before_tax_income, 2),
         "recipientEquivalentBeforeTaxIncome": round(
-            recipient_equivalent_before_tax_income, 2
+            recipient_equivalent_before_tax_income,
+            2,
         ),
-        "ndiPayor": final_snapshot["ndiPayor"],
-        "ndiRecipient": final_snapshot["ndiRecipient"],
-        "recipientSharePercent": final_snapshot["recipientSharePercent"],
+        "ndiPayor": round(final_financial_state["actualNdiPayor"], 2),
+        "ndiRecipient": round(final_financial_state["actualNdiRecipient"], 2),
+        "recipientSharePercent": round(
+            final_financial_state["formulaRecipientSharePercent"],
+            2,
+        ),
+        "actualRecipientSharePercent": round(
+            final_financial_state["actualRecipientSharePercent"],
+            2,
+        ),
         "iterations": len(history),
         "history": history,
     }

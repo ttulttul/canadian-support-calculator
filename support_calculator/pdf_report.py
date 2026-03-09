@@ -71,6 +71,12 @@ def render_support_report_pdf(
             "Fixed total gross support override: "
             f"{_format_currency(spousal_support['fixedTotalSupportAnnual'])}"
         )
+    if spousal_support["relationshipYears"] is not None:
+        notes.append(f"Length of relationship/cohabitation: {spousal_support['relationshipYears']:.2f} years")
+    if spousal_support["recipientAgeAtSeparation"] is not None:
+        notes.append(
+            f"Recipient age at separation: {spousal_support['recipientAgeAtSeparation']:.0f} years"
+        )
 
     html = f"""
 <!doctype html>
@@ -262,7 +268,17 @@ def render_support_report_pdf(
           <tbody>
             <tr><th>Estimated monthly spousal support</th><td class="numeric">{_format_currency(spousal_support['estimatedSpousalSupportMonthly'])}</td></tr>
             <tr><th>Estimated annual spousal support</th><td class="numeric">{_format_currency(spousal_support['estimatedSpousalSupportAnnual'])}</td></tr>
-            <tr><th>Recipient share of NDI</th><td class="numeric">{_format_percent(spousal_support['recipientSharePercent'])}</td></tr>
+            <tr><th>Low / Mid / High monthly</th><td class="numeric">{_format_currency(spousal_support['spousalSupportRange']['lowMonthly'])} / {_format_currency(spousal_support['spousalSupportRange']['midMonthly'])} / {_format_currency(spousal_support['spousalSupportRange']['highMonthly'])}</td></tr>
+            <tr><th>Formula recipient share</th><td class="numeric">{_format_percent(spousal_support['recipientSharePercent'])}</td></tr>
+            <tr><th>Actual recipient share</th><td class="numeric">{_format_percent(spousal_support['actualRecipientSharePercent'])}</td></tr>
+            <tr><th>Duration</th><td class="numeric">{
+                "Indefinite"
+                + (
+                    ""
+                    if not spousal_support["duration"]["inputsProvided"]
+                    else f" | Min {spousal_support['duration']['minYears']:.2f} years | Max {spousal_support['duration']['maxYears']:.2f} years"
+                )
+            }</td></tr>
             <tr><th>Iterations</th><td class="numeric">{spousal_support['iterations']}</td></tr>
           </tbody>
         </table>

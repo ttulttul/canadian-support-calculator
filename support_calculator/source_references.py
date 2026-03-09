@@ -14,6 +14,11 @@ CALCULATION_SOURCE_REFERENCES = [
         "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/payroll-deductions-t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
     },
     {
+        "key": "ssag",
+        "label": "Spousal Support Advisory Guidelines: The Revised User's Guide",
+        "url": "https://www.justice.gc.ca/eng/rp-pr/fl-lf/spousal-epoux/ss-pae.html",
+    },
+    {
         "key": "canadaChildBenefitAnnual",
         "label": "Canada child benefit overview",
         "url": "https://www.canada.ca/en/revenue-agency/services/child-family-benefits/canada-child-benefit-overview.html",
@@ -47,9 +52,9 @@ def filter_source_references(
     for reference in CALCULATION_SOURCE_REFERENCES:
         if reference["key"] == "childSupportTables" and not has_child_support:
             continue
-        if reference["key"] == "taxRates" and not has_spousal_support:
+        if reference["key"] in {"taxRates", "ssag"} and not has_spousal_support:
             continue
-        if reference["key"] not in {"childSupportTables", "taxRates"} and reference["key"] not in benefit_keys:
+        if reference["key"] not in {"childSupportTables", "taxRates", "ssag"} and reference["key"] not in benefit_keys:
             continue
         filtered_references.append(reference)
 

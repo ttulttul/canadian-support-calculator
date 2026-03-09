@@ -128,6 +128,16 @@ def _calculate_spousal_support_result(payload: dict) -> dict:
         recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
         child_support_override_monthly=_optional_number(payload, "childSupportOverrideMonthly"),
         fixed_total_support_annual=_optional_number(payload, "fixedTotalSupportAnnual"),
+        relationship_years=_optional_number(payload, "relationshipYears"),
+        recipient_age_at_separation=_optional_number(payload, "recipientAgeAtSeparation"),
+        years_until_child_full_time_school=_optional_number(
+            payload,
+            "yearsUntilChildFullTimeSchool",
+        ),
+        years_until_child_finishes_high_school=_optional_number(
+            payload,
+            "yearsUntilChildFinishesHighSchool",
+        ),
         num_children=normalized_payload["children"],
         children_under_six=normalized_payload["childrenUnderSix"],
         tax_year=normalized_payload["taxYear"],
@@ -175,8 +185,10 @@ def metadata():
                 "supported jurisdictions; B.C. family benefits are included for British Columbia."
             ),
             "spousalSupportAssumptions": (
-                "Spousal support is available for all supported non-Quebec jurisdictions using the "
-                "same NDI iteration model as child support."
+                "Spousal support is available for all supported non-Quebec jurisdictions and uses "
+                "a with-child shared-custody SSAG-style range model with low, mid, and high "
+                "estimates derived from formula NDI, plus duration metadata when relationship "
+                "inputs are provided."
             ),
         }
     )

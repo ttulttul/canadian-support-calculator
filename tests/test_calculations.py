@@ -293,3 +293,24 @@ def test_spousal_support_estimate_supports_ontario():
         "Canada child benefit",
         "GST/HST credit",
     ]
+
+
+def test_spousal_support_estimate_returns_range_and_duration_metadata():
+    result = calculate_spousal_support_estimate(
+        payor_income=175000,
+        recipient_income=20000,
+        child_support_override_monthly=2548,
+        num_children=2,
+        tax_year=2026,
+        relationship_years=14.5,
+        recipient_age_at_separation=46,
+        years_until_child_full_time_school=1,
+        years_until_child_finishes_high_school=14,
+    )
+
+    assert result["spousalSupportRange"]["lowAnnual"] < result["spousalSupportRange"]["midAnnual"]
+    assert result["spousalSupportRange"]["midAnnual"] < result["spousalSupportRange"]["highAnnual"]
+    assert result["duration"]["durationType"] == "indefinite"
+    assert result["duration"]["minYears"] == approx(7.25, rel=1e-4)
+    assert result["duration"]["maxYears"] == approx(14.5, rel=1e-4)
+    assert result["childSupport"]["overrideApplied"] is True
