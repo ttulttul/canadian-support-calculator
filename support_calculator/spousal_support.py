@@ -2,7 +2,11 @@ import logging
 
 from .benefits import calculate_shared_custody_benefits
 from .calculations import calculate_child_support_breakdown
-from .tables import ChildSupportTable, load_default_child_support_table
+from .tables import (
+    ChildSupportTable,
+    child_support_table_year_for_tax_year,
+    load_default_child_support_table,
+)
 from .tax import calculate_equivalent_before_tax_income, calculate_tax_profile
 
 logger = logging.getLogger(__name__)
@@ -14,6 +18,7 @@ def calculate_spousal_support_estimate(
     recipient_income: float,
     payor_spousal_income: float | None = None,
     recipient_spousal_income: float | None = None,
+    child_support_override_monthly: float | None = None,
     fixed_total_support_annual: float | None = None,
     num_children: int,
     tax_year: int,
@@ -34,7 +39,9 @@ def calculate_spousal_support_estimate(
     if not 0 < target_min < target_max < 1:
         raise ValueError("Target range must be between 0 and 1.")
 
-    active_table = table or load_default_child_support_table()
+    active_table = table or load_default_child_support_table(
+        table_year=child_support_table_year_for_tax_year(tax_year)
+    )
     jurisdiction_code = active_table.jurisdiction_code
     active_payor_spousal_income = (
         payor_income if payor_spousal_income is None else payor_spousal_income
@@ -48,12 +55,14 @@ def calculate_spousal_support_estimate(
         num_children=num_children,
         payor_income=payor_income,
         recipient_income=recipient_income,
+        net_monthly_override=child_support_override_monthly,
         table=active_table,
     )
     ndi_child_support = calculate_child_support_breakdown(
         num_children=num_children,
         payor_income=active_payor_spousal_income,
         recipient_income=active_recipient_spousal_income,
+        net_monthly_override=child_support_override_monthly,
         table=active_table,
     )
     actual_net_child_support_annual = child_support["netAnnual"]
@@ -280,6 +289,11 @@ def calculate_spousal_support_estimate(
         "recipientIncome": recipient_income,
         "payorSpousalIncome": active_payor_spousal_income,
         "recipientSpousalIncome": active_recipient_spousal_income,
+        "childSupportOverrideMonthly": (
+            None
+            if child_support_override_monthly is None
+            else round(child_support_override_monthly, 2)
+        ),
         "fixedTotalSupportAnnual": (
             None if fixed_total_support_annual is None else round(fixed_total_support_annual, 2)
         ),

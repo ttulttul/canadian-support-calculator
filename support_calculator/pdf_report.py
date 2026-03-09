@@ -61,6 +61,11 @@ def render_support_report_pdf(
             "Recipient income for spousal support only: "
             f"{_format_currency(spousal_support['recipientSpousalIncome'])}"
         )
+    if spousal_support["childSupportOverrideMonthly"] is not None:
+        notes.append(
+            "Net child support override: "
+            f"{_format_currency(spousal_support['childSupportOverrideMonthly'])} per month"
+        )
     if spousal_support["fixedTotalSupportAnnual"] is not None:
         notes.append(
             "Fixed total gross support override: "
@@ -211,6 +216,7 @@ def render_support_report_pdf(
     <section class="section">
       <h2>Child Support Guidelines (CSG)</h2>
       <div class="subhead">Monthly table amounts with offset calculation</div>
+      <p class="muted">Using {child_support['tableYear']} federal child support tables.</p>
       <table>
         <thead>
           <tr>
@@ -234,7 +240,13 @@ def render_support_report_pdf(
             <td class="numeric">{_format_currency(child_support['recipientAnnual'])}</td>
           </tr>
           <tr>
-            <td><strong>Net transfer</strong></td>
+            <td>Guideline net transfer</td>
+            <td class="numeric"></td>
+            <td class="numeric">{_format_currency(child_support['guidelineNetMonthly'])}</td>
+            <td class="numeric">{_format_currency(child_support['guidelineNetAnnual'])}</td>
+          </tr>
+          <tr>
+            <td><strong>Applied net transfer</strong></td>
             <td class="numeric"></td>
             <td class="numeric"><strong>{_format_currency(child_support['netMonthly'])}</strong></td>
             <td class="numeric"><strong>{_format_currency(child_support['netAnnual'])}</strong></td>

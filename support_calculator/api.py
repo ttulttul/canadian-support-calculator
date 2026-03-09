@@ -8,6 +8,7 @@ from .jurisdictions import spousal_support_jurisdictions
 from .pdf_report import render_support_report_pdf
 from .source_references import CALCULATION_SOURCE_REFERENCES, filter_source_references
 from .spousal_support import calculate_spousal_support_estimate
+from .tables import child_support_table_year_for_tax_year, load_default_child_support_table
 from .tax import DEFAULT_TAX_YEAR
 
 logger = logging.getLogger(__name__)
@@ -97,13 +98,15 @@ def _child_support_payload(payload: dict) -> dict:
 
 def _calculate_child_support_result(payload: dict) -> dict:
     normalized_payload = _child_support_payload(payload)
-    table = current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(
-        normalized_payload["jurisdiction"]
+    table = load_default_child_support_table(
+        normalized_payload["jurisdiction"],
+        table_year=child_support_table_year_for_tax_year(normalized_payload["taxYear"]),
     )
     result = calculate_child_support_breakdown(
         num_children=normalized_payload["children"],
         payor_income=normalized_payload["payorIncome"],
         recipient_income=normalized_payload["recipientIncome"],
+        net_monthly_override=_optional_number(payload, "childSupportOverrideMonthly"),
         table=table,
     )
     result["taxYear"] = normalized_payload["taxYear"]
@@ -123,13 +126,15 @@ def _calculate_spousal_support_result(payload: dict) -> dict:
         recipient_income=normalized_payload["recipientIncome"],
         payor_spousal_income=_optional_number(payload, "payorSpousalIncome"),
         recipient_spousal_income=_optional_number(payload, "recipientSpousalIncome"),
+        child_support_override_monthly=_optional_number(payload, "childSupportOverrideMonthly"),
         fixed_total_support_annual=_optional_number(payload, "fixedTotalSupportAnnual"),
         num_children=normalized_payload["children"],
         children_under_six=normalized_payload["childrenUnderSix"],
         tax_year=normalized_payload["taxYear"],
         target_range=(target_min_percent / 100.0, target_max_percent / 100.0),
-        table=current_app.config["CHILD_SUPPORT_TABLES"].for_jurisdiction(
-            normalized_payload["jurisdiction"]
+        table=load_default_child_support_table(
+            normalized_payload["jurisdiction"],
+            table_year=child_support_table_year_for_tax_year(normalized_payload["taxYear"]),
         ),
     )
     logger.debug("Built spousal support result for payload %s", normalized_payload)
@@ -159,8 +164,8 @@ def metadata():
             "defaultTargetRangePercent": {"min": 40, "max": 46},
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
-                "Child support uses bundled 2017 federal tables for all non-Quebec provinces "
-                "and territories. Spousal support uses a payroll-aware annual tax model with "
+                "Child support uses the 2017 federal tables before tax year 2025 and the "
+                "updated October 1, 2025 federal tables for tax year 2025 onward. Spousal support uses a payroll-aware annual tax model with "
                 "federal and provincial tax brackets, basic credits, CPP, EI, and annualized "
                 "shared-custody family benefits."
             ),

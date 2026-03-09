@@ -50,9 +50,10 @@ def test_child_support_route(client):
     payload = response.get_json()
 
     assert response.status_code == 200
-    assert payload["payorMonthly"] == approx(3582.0, rel=1e-4)
-    assert payload["recipientMonthly"] == approx(1106.0, rel=1e-4)
-    assert payload["netMonthly"] == approx(2476.0, rel=1e-4)
+    assert payload["tableYear"] == 2025
+    assert payload["payorMonthly"] == approx(3711.0, rel=1e-4)
+    assert payload["recipientMonthly"] == approx(1131.0, rel=1e-4)
+    assert payload["netMonthly"] == approx(2580.0, rel=1e-4)
     assert payload["taxYear"] == 2025
 
 
@@ -71,7 +72,29 @@ def test_child_support_route_supports_ontario(client):
 
     assert response.status_code == 200
     assert payload["jurisdiction"] == "ON"
-    assert payload["payorMonthly"] == approx(3428.0, rel=1e-4)
+    assert payload["tableYear"] == 2025
+    assert payload["payorMonthly"] == approx(3551.0, rel=1e-4)
+
+
+def test_child_support_route_accepts_net_transfer_override(client):
+    response = client.post(
+        "/api/calculate/child-support",
+        json={
+            "jurisdiction": "BC",
+            "children": 2,
+            "taxYear": 2026,
+            "payorIncome": 175000,
+            "recipientIncome": 20000,
+            "childSupportOverrideMonthly": 2548,
+        },
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["tableYear"] == 2025
+    assert payload["guidelineNetMonthly"] == approx(2316.0, rel=1e-4)
+    assert payload["netMonthly"] == approx(2548.0, rel=1e-4)
+    assert payload["overrideApplied"] is True
 
 
 def test_spousal_support_rejects_invalid_target_range(client):

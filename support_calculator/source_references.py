@@ -5,8 +5,8 @@ logger = logging.getLogger(__name__)
 CALCULATION_SOURCE_REFERENCES = [
     {
         "key": "childSupportTables",
-        "label": "Justice Canada 2017 Federal Child Support Tables",
-        "url": "https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2017/index.html",
+        "label": "Justice Canada Federal Child Support Tables",
+        "url": "https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2025/index.html",
     },
     {
         "key": "taxRates",

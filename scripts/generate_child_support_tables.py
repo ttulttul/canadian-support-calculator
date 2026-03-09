@@ -1,5 +1,7 @@
 import csv
 import logging
+import re
+import subprocess
 from dataclasses import dataclass
 from html.parser import HTMLParser
 from pathlib import Path
@@ -12,9 +14,14 @@ logger = logging.getLogger(__name__)
 OUTPUT_DIR = Path(__file__).resolve().parent.parent / "support_calculator" / "data"
 LOOKUP_OUTPUT_PATH = OUTPUT_DIR / "child_support_lookup_2017.csv"
 OVER_150K_OUTPUT_PATH = OUTPUT_DIR / "child_support_over_150k_2017.csv"
+LOOKUP_OUTPUT_PATH_2025 = OUTPUT_DIR / "child_support_lookup_2025.csv"
+OVER_150K_OUTPUT_PATH_2025 = OUTPUT_DIR / "child_support_over_150k_2025.csv"
 ARCHIVED_SECTION_URL = (
     "https://laws.justice.gc.ca/eng/regulations/SOR-97-175/"
     "section-sched{section_id}-20171122.html?wbdisable=true"
+)
+SIMPLIFIED_TABLE_PDF_URL = (
+    "https://www.justice.gc.ca/eng/fl-df/child-enfant/fcsg-lfpae/2025/pdf/{filename}.pdf"
 )
 
 CHILD_COUNT_LABELS = {
@@ -265,12 +272,161 @@ def generate_child_support_csvs() -> None:
     )
 
 
+def _pdf_filename(jurisdiction_code: str, suffix: str) -> str:
+    return f"{jurisdiction_code.lower()}{suffix}"
+
+
+def _fetch_pdf_text(filename: str) -> str:
+    url = SIMPLIFIED_TABLE_PDF_URL.format(filename=filename)
+    logger.info("Fetching 2025 simplified table PDF %s", url)
+    with urlopen(url, timeout=30) as response:
+        pdf_bytes = response.read()
+
+    temp_pdf_path = OUTPUT_DIR / f"{filename}.pdf"
+    temp_pdf_path.write_bytes(pdf_bytes)
+    try:
+        return subprocess.check_output(
+            ["pdftotext", "-layout", str(temp_pdf_path), "-"],
+            text=True,
+        )
+    finally:
+        temp_pdf_path.unlink(missing_ok=True)
+
+
+def _extract_simplified_rows(pdf_text: str, group_size: int) -> list[list[int]]:
+    rows: list[list[int]] = []
+    for line in pdf_text.splitlines():
+        tokens = re.findall(r"\d+(?:\.\d+)?", line)
+        if len(tokens) < group_size or len(tokens) % group_size != 0:
+            continue
+        if not line.lstrip().startswith(tokens[0]):
+            continue
+
+        grouped = [tokens[index : index + group_size] for index in range(0, len(tokens), group_size)]
+        rows.extend([[int(value) for value in group] for group in grouped])
+
+    return rows
+
+
+def _extract_over_150k_rules(pdf_text: str) -> list[tuple[float, float]]:
+    matches = re.findall(r"(\d+)\s+plus\s+([0-9]+(?:\.[0-9]+)?)%", pdf_text)
+    if not matches:
+        raise ValueError("No over-$150,000 rules were found in 2025 simplified table PDF.")
+
+    return [(float(base_amount), float(plus_pct)) for base_amount, plus_pct in matches]
+
+
+def generate_child_support_csvs_2025() -> None:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    lookup_rows: list[dict[str, str | int | float]] = []
+    over_150k_rows: list[dict[str, str | int | float]] = []
+
+    for jurisdiction in NON_QUEBEC_CHILD_SUPPORT_JURISDICTIONS:
+        low_pdf_text = _fetch_pdf_text(_pdf_filename(jurisdiction.code, "a"))
+        high_pdf_text = _fetch_pdf_text(_pdf_filename(jurisdiction.code, "b"))
+        low_rows = _extract_simplified_rows(low_pdf_text, group_size=5)
+        high_rows = _extract_simplified_rows(high_pdf_text, group_size=3)
+        low_rules = _extract_over_150k_rules(low_pdf_text)
+        high_rules = _extract_over_150k_rules(high_pdf_text)
+
+        if len(low_rules) != 4 or len(high_rules) != 2:
+            raise ValueError(
+                f"Unexpected over-$150,000 rule count for {jurisdiction.code}: "
+                f"{len(low_rules)} low, {len(high_rules)} high."
+            )
+
+        for income, one, two, three, four in low_rows:
+            lookup_rows.extend(
+                [
+                    {"Jurisdiction": jurisdiction.code, "Children": 1, "Income": income, "Amount": one},
+                    {"Jurisdiction": jurisdiction.code, "Children": 2, "Income": income, "Amount": two},
+                    {"Jurisdiction": jurisdiction.code, "Children": 3, "Income": income, "Amount": three},
+                    {"Jurisdiction": jurisdiction.code, "Children": 4, "Income": income, "Amount": four},
+                ]
+            )
+
+        for income, five, six_or_more in high_rows:
+            lookup_rows.extend(
+                [
+                    {"Jurisdiction": jurisdiction.code, "Children": 5, "Income": income, "Amount": five},
+                    {"Jurisdiction": jurisdiction.code, "Children": 6, "Income": income, "Amount": six_or_more},
+                    {"Jurisdiction": jurisdiction.code, "Children": 7, "Income": income, "Amount": six_or_more},
+                ]
+            )
+
+        for child_count, (base_amount, plus_pct) in enumerate(low_rules, start=1):
+            over_150k_rows.append(
+                {
+                    "Jurisdiction": jurisdiction.code,
+                    "Children": child_count,
+                    "BasicAmount": base_amount,
+                    "PlusPct": plus_pct,
+                    "OfIncomeOver": 150_000,
+                }
+            )
+
+        for children, (base_amount, plus_pct) in zip((5, 6, 7), [high_rules[0], high_rules[1], high_rules[1]], strict=True):
+            over_150k_rows.append(
+                {
+                    "Jurisdiction": jurisdiction.code,
+                    "Children": children,
+                    "BasicAmount": base_amount,
+                    "PlusPct": plus_pct,
+                    "OfIncomeOver": 150_000,
+                }
+            )
+
+    logger.info("Writing %s", LOOKUP_OUTPUT_PATH_2025)
+    with LOOKUP_OUTPUT_PATH_2025.open("w", newline="", encoding="utf-8") as file_handle:
+        writer = csv.DictWriter(
+            file_handle,
+            fieldnames=["Jurisdiction", "Children", "Income", "Amount"],
+        )
+        writer.writeheader()
+        writer.writerows(
+            sorted(
+                lookup_rows,
+                key=lambda row: (
+                    row["Jurisdiction"],
+                    int(row["Children"]),
+                    int(row["Income"]),
+                ),
+            )
+        )
+
+    logger.info("Writing %s", OVER_150K_OUTPUT_PATH_2025)
+    with OVER_150K_OUTPUT_PATH_2025.open("w", newline="", encoding="utf-8") as file_handle:
+        writer = csv.DictWriter(
+            file_handle,
+            fieldnames=[
+                "Jurisdiction",
+                "Children",
+                "BasicAmount",
+                "PlusPct",
+                "OfIncomeOver",
+            ],
+        )
+        writer.writeheader()
+        writer.writerows(
+            sorted(
+                over_150k_rows,
+                key=lambda row: (row["Jurisdiction"], int(row["Children"])),
+            )
+        )
+
+    logger.info(
+        "Generated 2025 child-support CSVs for %s jurisdictions.",
+        len(NON_QUEBEC_CHILD_SUPPORT_JURISDICTIONS),
+    )
+
+
 def main() -> None:
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",
     )
     generate_child_support_csvs()
+    generate_child_support_csvs_2025()
 
 
 if __name__ == "__main__":

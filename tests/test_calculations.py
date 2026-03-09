@@ -52,6 +52,13 @@ def test_child_support_tables_vary_by_jurisdiction():
     assert newfoundland_table.amount(3, 200000) == approx(3442.0, rel=1e-4)
 
 
+def test_child_support_uses_updated_2025_tables_for_later_tax_years():
+    table = load_default_child_support_table("BC", table_year=2025)
+
+    assert table.amount(2, 175000) == approx(2535.0, rel=1e-4)
+    assert table.amount(2, 20000) == approx(219.0, rel=1e-4)
+
+
 def test_child_support_breakdown_returns_direction_and_annual_values():
     result = calculate_child_support_breakdown(
         num_children=2,
@@ -63,6 +70,21 @@ def test_child_support_breakdown_returns_direction_and_annual_values():
     assert result["netMonthly"] == approx(2782.96, rel=1e-4)
     assert result["netAnnual"] == approx(33395.52, rel=1e-4)
     assert result["recipientTableIncome"] == 30600
+
+
+def test_child_support_breakdown_can_apply_net_transfer_override():
+    result = calculate_child_support_breakdown(
+        num_children=2,
+        payor_income=175000,
+        recipient_income=20000,
+        net_monthly_override=2548,
+        table=load_default_child_support_table("BC", table_year=2025),
+    )
+
+    assert result["tableYear"] == 2025
+    assert result["guidelineNetMonthly"] == approx(2316.0, rel=1e-4)
+    assert result["netMonthly"] == approx(2548.0, rel=1e-4)
+    assert result["overrideApplied"] is True
 
 
 def test_spousal_support_estimate_converges_inside_target_band():
@@ -87,6 +109,7 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["benefits"]["jurisdiction"] == "BC"
     assert result["benefits"]["lineItems"][0]["label"] == "Canada child benefit"
     assert result["ndiChildSupport"]["netAnnual"] == result["childSupport"]["netAnnual"]
+    assert result["childSupport"]["tableYear"] == 2025
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
         rel=1e-4,
