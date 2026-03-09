@@ -7,7 +7,11 @@ from support_calculator.tables import (
     load_default_child_support_registry,
     load_default_child_support_table,
 )
-from support_calculator.tax import calculate_bc_tax_approx, calculate_tax_approx
+from support_calculator.tax import (
+    calculate_bc_tax_approx,
+    calculate_tax_approx,
+    calculate_tax_profile,
+)
 
 
 def test_child_support_registry_loads_all_non_quebec_jurisdictions():
@@ -219,7 +223,7 @@ def test_bc_tax_approx_is_progressive():
     low_income_tax = calculate_bc_tax_approx(50_000, tax_year=2023)
     high_income_tax = calculate_bc_tax_approx(200_000, tax_year=2023)
 
-    assert low_income_tax == approx(10_144.73, rel=1e-4)
+    assert low_income_tax == approx(9_937.24, rel=1e-4)
     assert high_income_tax > low_income_tax
 
 
@@ -232,10 +236,21 @@ def test_tax_approx_varies_by_jurisdiction():
     on_tax = calculate_tax_approx(200_000, jurisdiction_code="ON", tax_year=2023)
     ab_tax = calculate_tax_approx(200_000, jurisdiction_code="AB", tax_year=2023)
 
-    assert bc_tax == approx(65_501.88, rel=1e-4)
-    assert on_tax == approx(63_055.34, rel=1e-4)
-    assert ab_tax == approx(65_679.57, rel=1e-4)
+    assert bc_tax == approx(66_190.89, rel=1e-4)
+    assert on_tax == approx(64_683.93, rel=1e-4)
+    assert ab_tax == approx(64_721.25, rel=1e-4)
     assert bc_tax > on_tax > 0
+
+
+def test_tax_profile_breaks_out_income_tax_and_payroll_deductions():
+    profile = calculate_tax_profile(50_000, jurisdiction_code="BC", tax_year=2023)
+
+    assert profile["incomeTax"] == approx(6_355.49, rel=1e-4)
+    assert profile["totalCppContribution"] == approx(2_766.75, rel=1e-4)
+    assert profile["eiPremium"] == approx(815.0, rel=1e-4)
+    assert profile["payrollDeductions"] == approx(3_581.75, rel=1e-4)
+    assert profile["totalDeductions"] == approx(9_937.24, rel=1e-4)
+    assert profile["taxableIncome"] == approx(49_535.0, rel=1e-4)
 
 
 def test_spousal_support_estimate_supports_ontario():

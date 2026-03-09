@@ -3,7 +3,7 @@ import logging
 from .benefits import calculate_shared_custody_benefits
 from .calculations import calculate_child_support_breakdown
 from .tables import ChildSupportTable, load_default_child_support_table
-from .tax import calculate_equivalent_before_tax_income, calculate_tax_approx
+from .tax import calculate_equivalent_before_tax_income, calculate_tax_profile
 
 logger = logging.getLogger(__name__)
 
@@ -78,16 +78,18 @@ def calculate_spousal_support_estimate(
     ) -> dict:
         current_payor_taxable_income = max(payor_income - spousal_support_annual, 0.0)
         current_recipient_taxable_income = recipient_income + spousal_support_annual
-        payor_tax = calculate_tax_approx(
+        payor_tax_profile = calculate_tax_profile(
             current_payor_taxable_income,
             jurisdiction_code=jurisdiction_code,
             tax_year=tax_year,
         )
-        recipient_tax = calculate_tax_approx(
+        recipient_tax_profile = calculate_tax_profile(
             current_recipient_taxable_income,
             jurisdiction_code=jurisdiction_code,
             tax_year=tax_year,
         )
+        payor_tax = payor_tax_profile["totalDeductions"]
+        recipient_tax = recipient_tax_profile["totalDeductions"]
         benefits = calculate_shared_custody_benefits(
             jurisdiction_code=jurisdiction_code,
             payor_adjusted_family_net_income=current_payor_taxable_income,
@@ -119,6 +121,8 @@ def calculate_spousal_support_estimate(
         return {
             "payorTaxableIncome": current_payor_taxable_income,
             "recipientTaxableIncome": current_recipient_taxable_income,
+            "payorTaxProfile": payor_tax_profile,
+            "recipientTaxProfile": recipient_tax_profile,
             "payorTax": payor_tax,
             "recipientTax": recipient_tax,
             "benefits": benefits,
@@ -221,18 +225,22 @@ def calculate_spousal_support_estimate(
         }
         history.append(final_snapshot)
 
-    payor_tax_before_support_deduction = calculate_tax_approx(
+    payor_tax_before_support_profile = calculate_tax_profile(
         payor_income,
         jurisdiction_code=jurisdiction_code,
         tax_year=tax_year,
     )
-    recipient_tax_before_support_inclusion = calculate_tax_approx(
+    recipient_tax_before_support_profile = calculate_tax_profile(
         recipient_income,
         jurisdiction_code=jurisdiction_code,
         tax_year=tax_year,
     )
+    payor_tax_before_support_deduction = payor_tax_before_support_profile["totalDeductions"]
+    recipient_tax_before_support_inclusion = recipient_tax_before_support_profile["totalDeductions"]
     payor_taxable_income = final_financial_state["payorTaxableIncome"]
     recipient_taxable_income = final_financial_state["recipientTaxableIncome"]
+    payor_tax_profile = final_financial_state["payorTaxProfile"]
+    recipient_tax_profile = final_financial_state["recipientTaxProfile"]
     payor_tax = final_financial_state["payorTax"]
     recipient_tax = final_financial_state["recipientTax"]
     benefits = final_financial_state["benefits"]
@@ -288,9 +296,13 @@ def calculate_spousal_support_estimate(
         "ndiChildSupport": ndi_child_support,
         "payorTaxableIncome": round(payor_taxable_income, 2),
         "recipientTaxableIncome": round(recipient_taxable_income, 2),
+        "payorTaxProfile": payor_tax_profile,
+        "recipientTaxProfile": recipient_tax_profile,
+        "payorTaxBeforeSupportProfile": payor_tax_before_support_profile,
         "payorTaxBeforeSupportDeduction": round(payor_tax_before_support_deduction, 2),
         "payorTax": round(payor_tax, 2),
         "payorTaxDeductionBenefit": round(payor_tax_deduction_benefit, 2),
+        "recipientTaxBeforeSupportProfile": recipient_tax_before_support_profile,
         "recipientTaxBeforeSupportInclusion": round(recipient_tax_before_support_inclusion, 2),
         "recipientTax": round(recipient_tax, 2),
         "recipientTaxSupportCost": round(recipient_tax_support_cost, 2),

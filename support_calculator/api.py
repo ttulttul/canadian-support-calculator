@@ -160,8 +160,9 @@ def metadata():
             "defaultTaxYear": DEFAULT_TAX_YEAR,
             "disclaimer": (
                 "Child support uses bundled 2017 federal tables for all non-Quebec provinces "
-                "and territories. Spousal support uses indexed 2023 federal and provincial marginal "
-                "tax brackets by jurisdiction, plus annualized shared-custody family benefits."
+                "and territories. Spousal support uses a payroll-aware annual tax model with "
+                "federal and provincial tax brackets, basic credits, CPP, EI, and annualized "
+                "shared-custody family benefits."
             ),
             "benefitAssumptions": (
                 "Benefit estimates assume both parents are single households in a shared-custody "

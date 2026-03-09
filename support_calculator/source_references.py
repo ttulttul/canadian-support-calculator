@@ -10,8 +10,8 @@ CALCULATION_SOURCE_REFERENCES = [
     },
     {
         "key": "taxRates",
-        "label": "CRA progressive tax rates and income brackets",
-        "url": "https://www.canada.ca/en/revenue-agency/services/tax/individuals/frequently-asked-questions-individuals/canadian-income-tax-rates-individuals-current-previous-years/learn-progressive-tax-rates-income-brackets.html",
+        "label": "CRA payroll deductions formulas and tax brackets",
+        "url": "https://www.canada.ca/en/revenue-agency/services/forms-publications/payroll/payroll-deductions-t4127-payroll-deductions-formulas/t4127-jan/t4127-jan-payroll-deductions-formulas-computer-programs.html",
     },
     {
         "key": "canadaChildBenefitAnnual",

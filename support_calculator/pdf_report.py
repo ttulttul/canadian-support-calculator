@@ -48,6 +48,8 @@ def render_support_report_pdf(
     )
     payor_benefits = spousal_support["benefits"]["payor"]["totalAnnual"]
     recipient_benefits = spousal_support["benefits"]["recipient"]["totalAnnual"]
+    payor_tax_profile = spousal_support["payorTaxProfile"]
+    recipient_tax_profile = spousal_support["recipientTaxProfile"]
     notes = []
     if spousal_support["payorSpousalIncome"] != spousal_support["payorIncome"]:
         notes.append(
@@ -260,6 +262,41 @@ def render_support_report_pdf(
     </section>
 
     <section class="section">
+      <h2>Tax and Payroll Detail</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Line item</th>
+            <th class="numeric">Payor Annual</th>
+            <th class="numeric">Recipient Annual</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Income tax after credits</td>
+            <td class="numeric">{_format_currency(-payor_tax_profile['incomeTax'])}</td>
+            <td class="numeric">{_format_currency(-recipient_tax_profile['incomeTax'])}</td>
+          </tr>
+          <tr>
+            <td>CPP contributions</td>
+            <td class="numeric">{_format_currency(-payor_tax_profile['totalCppContribution'])}</td>
+            <td class="numeric">{_format_currency(-recipient_tax_profile['totalCppContribution'])}</td>
+          </tr>
+          <tr>
+            <td>EI premiums</td>
+            <td class="numeric">{_format_currency(-payor_tax_profile['eiPremium'])}</td>
+            <td class="numeric">{_format_currency(-recipient_tax_profile['eiPremium'])}</td>
+          </tr>
+          <tr>
+            <td><strong>Total deductions</strong></td>
+            <td class="numeric"><strong>{_format_currency(-payor_tax_profile['totalDeductions'])}</strong></td>
+            <td class="numeric"><strong>{_format_currency(-recipient_tax_profile['totalDeductions'])}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
       <h2>Support Scenario</h2>
       <table class="support-scenario">
         <thead>
@@ -280,11 +317,18 @@ def render_support_report_pdf(
             <td class="numeric">{_format_currency(spousal_support['recipientIncome'])}</td>
           </tr>
           <tr>
-            <td>Taxes and Deductions</td>
-            <td class="numeric">{_format_monthly(-spousal_support['payorTax'])}</td>
-            <td class="numeric">{_format_monthly(-spousal_support['recipientTax'])}</td>
-            <td class="numeric">{_format_currency(-spousal_support['payorTax'])}</td>
-            <td class="numeric">{_format_currency(-spousal_support['recipientTax'])}</td>
+            <td>Income Tax</td>
+            <td class="numeric">{_format_monthly(-payor_tax_profile['incomeTax'])}</td>
+            <td class="numeric">{_format_monthly(-recipient_tax_profile['incomeTax'])}</td>
+            <td class="numeric">{_format_currency(-payor_tax_profile['incomeTax'])}</td>
+            <td class="numeric">{_format_currency(-recipient_tax_profile['incomeTax'])}</td>
+          </tr>
+          <tr>
+            <td>CPP and EI</td>
+            <td class="numeric">{_format_monthly(-payor_tax_profile['payrollDeductions'])}</td>
+            <td class="numeric">{_format_monthly(-recipient_tax_profile['payrollDeductions'])}</td>
+            <td class="numeric">{_format_currency(-payor_tax_profile['payrollDeductions'])}</td>
+            <td class="numeric">{_format_currency(-recipient_tax_profile['payrollDeductions'])}</td>
           </tr>
           <tr>
             <td>Benefits and Credits</td>
