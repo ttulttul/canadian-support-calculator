@@ -61,6 +61,29 @@ def _optional_number(payload: dict, key: str) -> float | None:
     return number
 
 
+def _optional_integer(payload: dict, key: str, *, minimum: int = 0) -> int | None:
+    value = payload.get(key)
+    if value in (None, ""):
+        return None
+
+    try:
+        number = int(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"'{key}' must be an integer.") from error
+
+    if number < minimum:
+        comparator = "greater than zero" if minimum == 1 else f"greater than or equal to {minimum}"
+        raise ValueError(f"'{key}' must be {comparator}.")
+    return number
+
+
+def _optional_eligible_dependant_claimant(payload: dict) -> str:
+    value = str(payload.get("eligibleDependantClaimant", "none") or "none").lower()
+    if value not in {"none", "payor", "recipient"}:
+        raise ValueError("'eligibleDependantClaimant' must be one of 'none', 'payor', or 'recipient'.")
+    return value
+
+
 def _optional_tax_year(payload: dict) -> int:
     value = payload.get("taxYear", DEFAULT_TAX_YEAR)
     try:
@@ -138,6 +161,23 @@ def _calculate_spousal_support_result(payload: dict) -> dict:
             payload,
             "yearsUntilChildFinishesHighSchool",
         ),
+        payor_registered_children=_optional_integer(payload, "payorRegisteredChildren", minimum=0),
+        recipient_registered_children=_optional_integer(
+            payload,
+            "recipientRegisteredChildren",
+            minimum=0,
+        ),
+        payor_household_adults=_optional_integer(payload, "payorHouseholdAdults", minimum=1) or 1,
+        recipient_household_adults=(
+            _optional_integer(payload, "recipientHouseholdAdults", minimum=1) or 1
+        ),
+        payor_children_under_six=_optional_integer(payload, "payorChildrenUnderSix", minimum=0),
+        recipient_children_under_six=_optional_integer(
+            payload,
+            "recipientChildrenUnderSix",
+            minimum=0,
+        ),
+        eligible_dependant_claimant=_optional_eligible_dependant_claimant(payload),
         num_children=normalized_payload["children"],
         children_under_six=normalized_payload["childrenUnderSix"],
         tax_year=normalized_payload["taxYear"],
@@ -180,15 +220,17 @@ def metadata():
                 "shared-custody family benefits."
             ),
             "benefitAssumptions": (
-                "Benefit estimates assume both parents are single households in a shared-custody "
-                "offset scenario. Federal Canada Child Benefit and GST/HST credit are modeled for all "
-                "supported jurisdictions; B.C. family benefits are included for British Columbia."
+                "Benefit estimates default to single-household shared-custody, but can also model "
+                "explicit child allocations, household adult counts, and under-6 allocations. "
+                "Federal Canada Child Benefit and GST/HST credit are modeled for all supported "
+                "jurisdictions; B.C. family benefits are included for British Columbia."
             ),
             "spousalSupportAssumptions": (
                 "Spousal support is available for all supported non-Quebec jurisdictions and uses "
                 "a with-child shared-custody SSAG-style range model with low, mid, and high "
                 "estimates derived from formula NDI, plus duration metadata when relationship "
-                "inputs are provided."
+                "inputs are provided. Tax profiles can optionally apply a claimant-selected "
+                "eligible dependant credit."
             ),
         }
     )

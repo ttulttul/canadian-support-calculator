@@ -242,6 +242,45 @@ def test_shared_custody_benefits_skip_bc_specific_credits_outside_bc():
     assert "bcClimateActionCreditAnnual" not in result["recipient"]
 
 
+def test_shared_custody_benefits_support_explicit_child_allocation():
+    default_result = calculate_shared_custody_benefits(
+        jurisdiction_code="BC",
+        payor_adjusted_family_net_income=40_000,
+        recipient_adjusted_family_net_income=25_000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2025,
+    )
+    explicit_result = calculate_shared_custody_benefits(
+        jurisdiction_code="BC",
+        payor_adjusted_family_net_income=40_000,
+        recipient_adjusted_family_net_income=25_000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2025,
+        payor_registered_children=0,
+        recipient_registered_children=2,
+        payor_household_adults=2,
+        recipient_household_adults=1,
+        payor_children_under_six=0,
+        recipient_children_under_six=1,
+    )
+
+    assert default_result["assumptions"]["explicitAllocation"] is False
+    assert explicit_result["assumptions"]["explicitAllocation"] is True
+    assert explicit_result["assumptions"]["payorRegisteredChildren"] == 0
+    assert explicit_result["assumptions"]["recipientRegisteredChildren"] == 2
+    assert explicit_result["assumptions"]["payorHouseholdAdults"] == 2
+    assert explicit_result["assumptions"]["recipientChildrenUnderSix"] == 1
+    assert explicit_result["payor"]["canadaChildBenefitAnnual"] == 0
+    assert (
+        explicit_result["recipient"]["canadaChildBenefitAnnual"]
+        > default_result["recipient"]["canadaChildBenefitAnnual"]
+    )
+    assert explicit_result["recipient"]["totalAnnual"] > default_result["recipient"]["totalAnnual"]
+    assert explicit_result["payor"]["totalAnnual"] < default_result["payor"]["totalAnnual"]
+
+
 def test_bc_tax_approx_is_progressive():
     low_income_tax = calculate_bc_tax_approx(50_000, tax_year=2023)
     high_income_tax = calculate_bc_tax_approx(200_000, tax_year=2023)
@@ -274,6 +313,23 @@ def test_tax_profile_breaks_out_income_tax_and_payroll_deductions():
     assert profile["payrollDeductions"] == approx(3_581.75, rel=1e-4)
     assert profile["totalDeductions"] == approx(9_937.24, rel=1e-4)
     assert profile["taxableIncome"] == approx(49_535.0, rel=1e-4)
+
+
+def test_tax_profile_can_apply_eligible_dependant_credit():
+    baseline = calculate_tax_profile(50_000, jurisdiction_code="BC", tax_year=2025)
+    claimant = calculate_tax_profile(
+        50_000,
+        jurisdiction_code="BC",
+        tax_year=2025,
+        claim_eligible_dependant=True,
+    )
+
+    assert claimant["eligibleDependantClaimed"] is True
+    assert claimant["federalEligibleDependantAmount"] > 0
+    assert claimant["provincialEligibleDependantAmount"] > 0
+    assert claimant["federalEligibleDependantCredit"] > 0
+    assert claimant["provincialEligibleDependantCredit"] > 0
+    assert claimant["totalDeductions"] < baseline["totalDeductions"]
 
 
 def test_spousal_support_estimate_supports_ontario():
@@ -314,3 +370,37 @@ def test_spousal_support_estimate_returns_range_and_duration_metadata():
     assert result["duration"]["minYears"] == approx(7.25, rel=1e-4)
     assert result["duration"]["maxYears"] == approx(14.5, rel=1e-4)
     assert result["childSupport"]["overrideApplied"] is True
+
+
+def test_spousal_support_can_model_claimant_and_household_allocation():
+    baseline = calculate_spousal_support_estimate(
+        payor_income=175000,
+        recipient_income=20000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2025,
+    )
+    allocated = calculate_spousal_support_estimate(
+        payor_income=175000,
+        recipient_income=20000,
+        num_children=2,
+        children_under_six=1,
+        tax_year=2025,
+        payor_registered_children=0,
+        recipient_registered_children=2,
+        payor_household_adults=2,
+        recipient_household_adults=1,
+        payor_children_under_six=0,
+        recipient_children_under_six=1,
+        eligible_dependant_claimant="recipient",
+    )
+
+    assert allocated["eligibleDependantClaimant"] == "recipient"
+    assert allocated["payorRegisteredChildren"] == 0
+    assert allocated["recipientRegisteredChildren"] == 2
+    assert allocated["benefits"]["assumptions"]["explicitAllocation"] is True
+    assert allocated["recipientTaxProfile"]["eligibleDependantClaimed"] is True
+    assert allocated["payorTaxProfile"]["eligibleDependantClaimed"] is False
+    assert allocated["recipientTax"] < baseline["recipientTax"]
+    assert allocated["benefits"]["recipient"]["totalAnnual"] > baseline["benefits"]["recipient"]["totalAnnual"]
+    assert allocated["benefits"]["payor"]["totalAnnual"] < baseline["benefits"]["payor"]["totalAnnual"]

@@ -34,6 +34,7 @@ def test_metadata(client):
     assert payload["defaultTaxYear"] == 2023
     assert "shared-custody" in payload["benefitAssumptions"]
     assert "non-Quebec" in payload["spousalSupportAssumptions"]
+    assert "eligible dependant" in payload["spousalSupportAssumptions"]
 
 
 def test_child_support_route(client):
@@ -199,6 +200,40 @@ def test_spousal_support_route_accepts_separate_spousal_incomes(client):
     assert payload["childSupport"]["recipientIncome"] == 30600
     assert payload["ndiChildSupport"]["payorIncome"] == 190000
     assert payload["ndiChildSupport"]["recipientIncome"] == 45000
+
+
+def test_spousal_support_route_accepts_household_allocation_and_claimant(client):
+    response = client.post(
+        "/api/calculate/spousal-support",
+        json={
+            "jurisdiction": "BC",
+            "children": 2,
+            "childrenUnderSix": 1,
+            "taxYear": 2025,
+            "payorIncome": 175000,
+            "recipientIncome": 20000,
+            "payorRegisteredChildren": 0,
+            "recipientRegisteredChildren": 2,
+            "payorHouseholdAdults": 2,
+            "recipientHouseholdAdults": 1,
+            "payorChildrenUnderSix": 0,
+            "recipientChildrenUnderSix": 1,
+            "eligibleDependantClaimant": "recipient",
+            "targetMinPercent": 40,
+            "targetMaxPercent": 46,
+        },
+    )
+    payload = response.get_json()
+
+    assert response.status_code == 200
+    assert payload["eligibleDependantClaimant"] == "recipient"
+    assert payload["payorRegisteredChildren"] == 0
+    assert payload["recipientRegisteredChildren"] == 2
+    assert payload["payorHouseholdAdults"] == 2
+    assert payload["benefits"]["assumptions"]["explicitAllocation"] is True
+    assert payload["benefits"]["assumptions"]["recipientChildrenUnderSix"] == 1
+    assert payload["recipientTaxProfile"]["eligibleDependantClaimed"] is True
+    assert payload["payorTaxProfile"]["eligibleDependantClaimed"] is False
 
 
 def test_spousal_support_route_accepts_fixed_total_support(client):

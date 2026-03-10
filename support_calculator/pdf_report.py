@@ -48,6 +48,7 @@ def render_support_report_pdf(
     )
     payor_benefits = spousal_support["benefits"]["payor"]["totalAnnual"]
     recipient_benefits = spousal_support["benefits"]["recipient"]["totalAnnual"]
+    benefit_assumptions = spousal_support["benefits"]["assumptions"]
     payor_tax_profile = spousal_support["payorTaxProfile"]
     recipient_tax_profile = spousal_support["recipientTaxProfile"]
     notes = []
@@ -76,6 +77,26 @@ def render_support_report_pdf(
     if spousal_support["recipientAgeAtSeparation"] is not None:
         notes.append(
             f"Recipient age at separation: {spousal_support['recipientAgeAtSeparation']:.0f} years"
+        )
+    if spousal_support["eligibleDependantClaimant"] != "none":
+        notes.append(
+            "Eligible dependant credit claimed by "
+            f"{spousal_support['eligibleDependantClaimant'].capitalize()}"
+        )
+    if benefit_assumptions["explicitAllocation"]:
+        notes.append(
+            "Explicit child allocation applied: "
+            f"payor {benefit_assumptions['payorRegisteredChildren']} child(ren), "
+            f"recipient {benefit_assumptions['recipientRegisteredChildren']} child(ren)"
+        )
+    if (
+        benefit_assumptions["payorHouseholdAdults"] != 1
+        or benefit_assumptions["recipientHouseholdAdults"] != 1
+    ):
+        notes.append(
+            "Household adults modeled as "
+            f"{benefit_assumptions['payorHouseholdAdults']} for payor and "
+            f"{benefit_assumptions['recipientHouseholdAdults']} for recipient"
         )
 
     html = f"""
@@ -203,6 +224,7 @@ def render_support_report_pdf(
             <tr><td>Jurisdiction</td><td class="numeric">{escape(spousal_support['jurisdictionName'])}</td></tr>
             <tr><td>Children</td><td class="numeric">{scenario['children']}</td></tr>
             <tr><td>Children under 6</td><td class="numeric">{scenario['childrenUnderSix']}</td></tr>
+            <tr><td>Eligible dependant claimant</td><td class="numeric">{escape(spousal_support['eligibleDependantClaimant'].capitalize())}</td></tr>
             <tr><td>Tax year</td><td class="numeric">{scenario['taxYear']}</td></tr>
             <tr><td>Target recipient NDI range</td><td class="numeric">{_format_percent(spousal_support['targetRangePercent']['min'])} to {_format_percent(spousal_support['targetRangePercent']['max'])}</td></tr>
           </tbody>
@@ -214,6 +236,8 @@ def render_support_report_pdf(
           <tbody>
             <tr><td>Payor</td><td class="numeric">{_format_currency(spousal_support['payorIncome'])}</td></tr>
             <tr><td>Recipient</td><td class="numeric">{_format_currency(spousal_support['recipientIncome'])}</td></tr>
+            <tr><td>Registered children for benefits</td><td class="numeric">Payor {spousal_support['payorRegisteredChildren']} | Recipient {spousal_support['recipientRegisteredChildren']}</td></tr>
+            <tr><td>Household adults</td><td class="numeric">Payor {spousal_support['payorHouseholdAdults']} | Recipient {spousal_support['recipientHouseholdAdults']}</td></tr>
           </tbody>
         </table>
       </div>
@@ -304,6 +328,11 @@ def render_support_report_pdf(
             <td>Income tax after credits</td>
             <td class="numeric">{_format_currency(-payor_tax_profile['incomeTax'])}</td>
             <td class="numeric">{_format_currency(-recipient_tax_profile['incomeTax'])}</td>
+          </tr>
+          <tr>
+            <td>Eligible dependant credit</td>
+            <td class="numeric">{_format_currency(payor_tax_profile['federalEligibleDependantCredit'] + payor_tax_profile['provincialEligibleDependantCredit'])}</td>
+            <td class="numeric">{_format_currency(recipient_tax_profile['federalEligibleDependantCredit'] + recipient_tax_profile['provincialEligibleDependantCredit'])}</td>
           </tr>
           <tr>
             <td>CPP contributions</td>

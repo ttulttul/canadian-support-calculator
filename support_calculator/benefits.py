@@ -234,13 +234,15 @@ def calculate_gst_hst_credit(
     *,
     adjusted_family_net_income: float,
     registered_children: int,
+    household_adults: int = 1,
     tax_year: int,
 ) -> float:
     config = _year_scaled_config(GST_HST_CONFIGS, tax_year)
-    if registered_children > 0:
+    if household_adults > 1:
+        subtotal = config["base_credit"] * 2 + config["child_credit"] * registered_children
+    elif registered_children > 0:
         subtotal = (
-            config["base_credit"]
-            + config["base_credit"]
+            config["base_credit"] * 2
             + config["child_credit"] * max(registered_children - 1, 0)
             + config["single_supplement"]
         )
@@ -287,6 +289,7 @@ def calculate_bc_family_benefit(
     *,
     adjusted_family_net_income: float,
     registered_children: int,
+    household_adults: int = 1,
     tax_year: int,
 ) -> float:
     if registered_children <= 0:
@@ -306,7 +309,9 @@ def calculate_bc_family_benefit(
         additional_child_amount=config["min_additional_child"],
     )
 
-    maximum_total = maximum_child_amount + config["single_parent_supplement"]
+    maximum_total = maximum_child_amount + (
+        config["single_parent_supplement"] if household_adults == 1 else 0.0
+    )
     if adjusted_family_net_income <= config["max_threshold"]:
         benefit = maximum_total
     elif adjusted_family_net_income <= config["phaseout_threshold"]:
@@ -336,6 +341,7 @@ def calculate_bc_climate_action_credit(
     *,
     adjusted_family_net_income: float,
     registered_children: int,
+    household_adults: int = 1,
     tax_year: int,
 ) -> float:
     if tax_year >= 2024:
@@ -343,13 +349,15 @@ def calculate_bc_climate_action_credit(
         return 0.0
 
     config = _year_scaled_config(BC_CLIMATE_ACTION_CONFIGS, tax_year)
-    if registered_children > 0:
+    if household_adults > 1 or registered_children > 0:
         threshold = config["family_threshold"]
-        maximum_credit = (
-            config["adult"]
-            + config["second_adult_or_first_child"]
-            + config["additional_child"] * max(registered_children - 1, 0)
-        )
+        maximum_credit = config["adult"]
+        if household_adults > 1:
+            maximum_credit += config["second_adult_or_first_child"]
+            maximum_credit += config["additional_child"] * registered_children
+        elif registered_children > 0:
+            maximum_credit += config["second_adult_or_first_child"]
+            maximum_credit += config["additional_child"] * max(registered_children - 1, 0)
     else:
         threshold = config["single_threshold"]
         maximum_credit = config["adult"]
@@ -388,6 +396,88 @@ def _modeled_benefit_labels(
     return line_items
 
 
+def _normalized_registered_children(
+    *,
+    payor_registered_children: int | None,
+    recipient_registered_children: int | None,
+    num_children: int,
+) -> tuple[int, int, bool]:
+    if payor_registered_children is None and recipient_registered_children is None:
+        return num_children, num_children, False
+
+    if payor_registered_children is None:
+        payor_registered_children = max(num_children - recipient_registered_children, 0)
+    if recipient_registered_children is None:
+        recipient_registered_children = max(num_children - payor_registered_children, 0)
+
+    if payor_registered_children < 0 or recipient_registered_children < 0:
+        raise ValueError("Registered child counts must be zero or greater.")
+    if payor_registered_children > num_children or recipient_registered_children > num_children:
+        raise ValueError("Registered child counts cannot exceed the total number of children.")
+    if payor_registered_children + recipient_registered_children != num_children:
+        raise ValueError(
+            "Explicit registered child allocations must add up to the total number of children."
+        )
+
+    return payor_registered_children, recipient_registered_children, True
+
+
+def _allocated_under_six(
+    *,
+    total_children_under_six: int,
+    payor_registered_children: int,
+    recipient_registered_children: int,
+    payor_children_under_six: int | None,
+    recipient_children_under_six: int | None,
+) -> tuple[int, int]:
+    if payor_children_under_six is not None and recipient_children_under_six is not None:
+        if payor_children_under_six < 0 or recipient_children_under_six < 0:
+            raise ValueError("Allocated children under 6 must be zero or greater.")
+        if payor_children_under_six > payor_registered_children:
+            raise ValueError("Payor children under 6 cannot exceed the payor's registered children.")
+        if recipient_children_under_six > recipient_registered_children:
+            raise ValueError(
+                "Recipient children under 6 cannot exceed the recipient's registered children."
+            )
+        if payor_children_under_six + recipient_children_under_six != total_children_under_six:
+            raise ValueError(
+                "Explicit children under 6 allocations must add up to the total number of children under 6."
+            )
+        return payor_children_under_six, recipient_children_under_six
+
+    if payor_children_under_six is not None:
+        if payor_children_under_six < 0:
+            raise ValueError("Payor children under 6 must be zero or greater.")
+        if payor_children_under_six > min(total_children_under_six, payor_registered_children):
+            raise ValueError("Payor children under 6 cannot exceed the payor's registered children.")
+        recipient_children_under_six = max(total_children_under_six - payor_children_under_six, 0)
+        return payor_children_under_six, recipient_children_under_six
+    if recipient_children_under_six is not None:
+        if recipient_children_under_six < 0:
+            raise ValueError("Recipient children under 6 must be zero or greater.")
+        if recipient_children_under_six > min(
+            total_children_under_six,
+            recipient_registered_children,
+        ):
+            raise ValueError(
+                "Recipient children under 6 cannot exceed the recipient's registered children."
+            )
+        payor_children_under_six = max(total_children_under_six - recipient_children_under_six, 0)
+        return payor_children_under_six, recipient_children_under_six
+
+    total_registered = payor_registered_children + recipient_registered_children
+    if total_registered <= 0 or total_children_under_six <= 0:
+        return 0, 0
+
+    payor_allocation = round(total_children_under_six * (payor_registered_children / total_registered))
+    payor_allocation = min(payor_allocation, total_children_under_six, payor_registered_children)
+    recipient_allocation = min(
+        total_children_under_six - payor_allocation,
+        recipient_registered_children,
+    )
+    return payor_allocation, recipient_allocation
+
+
 def calculate_shared_custody_benefits(
     *,
     jurisdiction_code: str,
@@ -396,37 +486,71 @@ def calculate_shared_custody_benefits(
     num_children: int,
     children_under_six: int,
     tax_year: int,
+    payor_registered_children: int | None = None,
+    recipient_registered_children: int | None = None,
+    payor_household_adults: int = 1,
+    recipient_household_adults: int = 1,
+    payor_children_under_six: int | None = None,
+    recipient_children_under_six: int | None = None,
 ) -> dict:
     if num_children <= 0:
         raise ValueError("Number of children must be greater than zero.")
 
     if children_under_six < 0 or children_under_six > num_children:
         raise ValueError("'childrenUnderSix' must be between zero and the total number of children.")
+    if payor_household_adults <= 0 or recipient_household_adults <= 0:
+        raise ValueError("Household adult counts must be greater than zero.")
 
     normalized_code = str(jurisdiction_code or "BC").upper()
+    (
+        normalized_payor_registered_children,
+        normalized_recipient_registered_children,
+        explicit_allocation,
+    ) = _normalized_registered_children(
+        payor_registered_children=payor_registered_children,
+        recipient_registered_children=recipient_registered_children,
+        num_children=num_children,
+    )
+    if explicit_allocation:
+        (
+            normalized_payor_children_under_six,
+            normalized_recipient_children_under_six,
+        ) = _allocated_under_six(
+            total_children_under_six=children_under_six,
+            payor_registered_children=normalized_payor_registered_children,
+            recipient_registered_children=normalized_recipient_registered_children,
+            payor_children_under_six=payor_children_under_six,
+            recipient_children_under_six=recipient_children_under_six,
+        )
+    else:
+        normalized_payor_children_under_six = children_under_six
+        normalized_recipient_children_under_six = children_under_six
+
     payor_full = {
         "canadaChildBenefitAnnual": calculate_canada_child_benefit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
-            num_children=num_children,
-            children_under_six=children_under_six,
+            num_children=normalized_payor_registered_children,
+            children_under_six=normalized_payor_children_under_six,
             tax_year=tax_year,
         ),
         "gstHstCreditAnnual": calculate_gst_hst_credit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_payor_registered_children,
+            household_adults=payor_household_adults,
             tax_year=tax_year,
         ),
     }
     recipient_full = {
         "canadaChildBenefitAnnual": calculate_canada_child_benefit(
             adjusted_family_net_income=recipient_adjusted_family_net_income,
-            num_children=num_children,
-            children_under_six=children_under_six,
+            num_children=normalized_recipient_registered_children,
+            children_under_six=normalized_recipient_children_under_six,
             tax_year=tax_year,
         ),
         "gstHstCreditAnnual": calculate_gst_hst_credit(
             adjusted_family_net_income=recipient_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_recipient_registered_children,
+            household_adults=recipient_household_adults,
             tax_year=tax_year,
         ),
     }
@@ -434,38 +558,48 @@ def calculate_shared_custody_benefits(
     if normalized_code == "BC":
         payor_full["bcFamilyBenefitAnnual"] = calculate_bc_family_benefit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_payor_registered_children,
+            household_adults=payor_household_adults,
             tax_year=tax_year,
         )
         payor_full["bcClimateActionCreditAnnual"] = calculate_bc_climate_action_credit(
             adjusted_family_net_income=payor_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_payor_registered_children,
+            household_adults=payor_household_adults,
             tax_year=tax_year,
         )
         recipient_full["bcFamilyBenefitAnnual"] = calculate_bc_family_benefit(
             adjusted_family_net_income=recipient_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_recipient_registered_children,
+            household_adults=recipient_household_adults,
             tax_year=tax_year,
         )
         recipient_full["bcClimateActionCreditAnnual"] = calculate_bc_climate_action_credit(
             adjusted_family_net_income=recipient_adjusted_family_net_income,
-            registered_children=num_children,
+            registered_children=normalized_recipient_registered_children,
+            household_adults=recipient_household_adults,
             tax_year=tax_year,
         )
 
-    shared_multiplier = 0.5
-    payor = _round_benefit_breakdown(
-        {key: value * shared_multiplier for key, value in payor_full.items()}
-    )
-    recipient = _round_benefit_breakdown(
-        {key: value * shared_multiplier for key, value in recipient_full.items()}
-    )
+    if explicit_allocation:
+        payor = _round_benefit_breakdown(payor_full)
+        recipient = _round_benefit_breakdown(recipient_full)
+    else:
+        shared_multiplier = 0.5
+        payor = _round_benefit_breakdown(
+            {key: value * shared_multiplier for key, value in payor_full.items()}
+        )
+        recipient = _round_benefit_breakdown(
+            {key: value * shared_multiplier for key, value in recipient_full.items()}
+        )
     logger.info(
-        "Calculated shared-custody benefits: jurisdiction=%s tax_year=%s children=%s under_6=%s payor_total=%s recipient_total=%s",
+        "Calculated shared-custody benefits: jurisdiction=%s tax_year=%s children=%s under_6=%s payor_children=%s recipient_children=%s payor_total=%s recipient_total=%s",
         normalized_code,
         tax_year,
         num_children,
         children_under_six,
+        normalized_payor_registered_children,
+        normalized_recipient_registered_children,
         payor["totalAnnual"],
         recipient["totalAnnual"],
     )
@@ -477,8 +611,15 @@ def calculate_shared_custody_benefits(
         "jurisdiction": normalized_code,
         "assumptions": {
             "sharedCustody": True,
-            "singleHouseholds": True,
+            "singleHouseholds": payor_household_adults == 1 and recipient_household_adults == 1,
             "childrenUnderSix": children_under_six,
+            "explicitAllocation": explicit_allocation,
+            "payorRegisteredChildren": normalized_payor_registered_children,
+            "recipientRegisteredChildren": normalized_recipient_registered_children,
+            "payorHouseholdAdults": payor_household_adults,
+            "recipientHouseholdAdults": recipient_household_adults,
+            "payorChildrenUnderSix": normalized_payor_children_under_six,
+            "recipientChildrenUnderSix": normalized_recipient_children_under_six,
         },
         "lineItems": _modeled_benefit_labels(
             jurisdiction_code=normalized_code,

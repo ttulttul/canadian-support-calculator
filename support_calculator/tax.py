@@ -726,6 +726,7 @@ def calculate_tax_profile(
     jurisdiction_code: str = "BC",
     tax_year: int = DEFAULT_TAX_YEAR,
     employment_income: float | None = None,
+    claim_eligible_dependant: bool = False,
 ) -> dict[str, float | int | str]:
     normalized_code = _normalize_jurisdiction_code(jurisdiction_code)
     normalized_income = max(income, 0.0)
@@ -749,12 +750,22 @@ def calculate_tax_profile(
         taxable_income,
         tax_year,
     )
+    eligible_dependant_federal_amount = (
+        federal_basic_personal_amount if claim_eligible_dependant else 0.0
+    )
+    eligible_dependant_provincial_amount = (
+        provincial_basic_personal_amount if claim_eligible_dependant else 0.0
+    )
     employment_amount = min(active_employment_income, _federal_employment_amount(tax_year))
     federal_claim_credit = federal_basic_personal_amount * federal_lowest_rate
     federal_payroll_credit = (payroll["baseCppContribution"] + payroll["eiPremium"]) * federal_lowest_rate
     federal_employment_credit = employment_amount * federal_lowest_rate
+    federal_eligible_dependant_credit = eligible_dependant_federal_amount * federal_lowest_rate
     federal_non_refundable_credits = (
-        federal_claim_credit + federal_payroll_credit + federal_employment_credit
+        federal_claim_credit
+        + federal_payroll_credit
+        + federal_employment_credit
+        + federal_eligible_dependant_credit
     )
 
     provincial_claim_credit = provincial_basic_personal_amount * provincial_lowest_rate
@@ -762,8 +773,14 @@ def calculate_tax_profile(
         payroll["baseCppContribution"] + payroll["eiPremium"]
     ) * provincial_lowest_rate
     provincial_employment_credit = employment_amount * provincial_lowest_rate if normalized_code == "YT" else 0.0
+    provincial_eligible_dependant_credit = (
+        eligible_dependant_provincial_amount * provincial_lowest_rate
+    )
     provincial_non_refundable_credits = (
-        provincial_claim_credit + provincial_payroll_credit + provincial_employment_credit
+        provincial_claim_credit
+        + provincial_payroll_credit
+        + provincial_employment_credit
+        + provincial_eligible_dependant_credit
     )
 
     if normalized_code == "AB" and tax_year >= 2025:
@@ -801,6 +818,11 @@ def calculate_tax_profile(
         "provincialNonRefundableCredits": round(provincial_non_refundable_credits, 2),
         "federalBasicPersonalAmount": round(federal_basic_personal_amount, 2),
         "provincialBasicPersonalAmount": round(provincial_basic_personal_amount, 2),
+        "eligibleDependantClaimed": claim_eligible_dependant,
+        "federalEligibleDependantAmount": round(eligible_dependant_federal_amount, 2),
+        "provincialEligibleDependantAmount": round(eligible_dependant_provincial_amount, 2),
+        "federalEligibleDependantCredit": round(federal_eligible_dependant_credit, 2),
+        "provincialEligibleDependantCredit": round(provincial_eligible_dependant_credit, 2),
         "employmentAmount": round(employment_amount, 2),
         "provincialTaxReduction": round(provincial_tax_reduction, 2),
         "provincialSurtax": round(provincial_surtax, 2),
