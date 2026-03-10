@@ -33,6 +33,39 @@ def _render_reference_list(source_references: list[dict[str, str]]) -> str:
     return "".join(items)
 
 
+def _selected_range_point_label(value: str) -> str:
+    labels = {
+        "low": "Low",
+        "mid": "Mid",
+        "high": "High",
+        "fixed_total_override": "Fixed total override",
+    }
+    return labels.get(value, str(value or "").replace("_", " ").title())
+
+
+def _render_key_value_rows(rows: list[tuple[str, str]]) -> str:
+    return "".join(
+        f"<tr><td>{escape(label)}</td><td class=\"numeric\">{escape(value)}</td></tr>"
+        for label, value in rows
+    )
+
+
+def _render_benefit_rows(spousal_support: dict) -> str:
+    payor_benefits = spousal_support["benefits"]["payor"]
+    recipient_benefits = spousal_support["benefits"]["recipient"]
+    rows = []
+    for item in spousal_support["benefits"]["lineItems"]:
+        key = item["key"]
+        rows.append(
+            "<tr>"
+            f"<td>{escape(item['label'])}</td>"
+            f"<td class=\"numeric\">{_format_currency(payor_benefits.get(key, 0.0))}</td>"
+            f"<td class=\"numeric\">{_format_currency(recipient_benefits.get(key, 0.0))}</td>"
+            "</tr>"
+        )
+    return "".join(rows)
+
+
 def render_support_report_pdf(
     *,
     scenario: dict,
@@ -49,6 +82,8 @@ def render_support_report_pdf(
     payor_benefits = spousal_support["benefits"]["payor"]["totalAnnual"]
     recipient_benefits = spousal_support["benefits"]["recipient"]["totalAnnual"]
     benefit_assumptions = spousal_support["benefits"]["assumptions"]
+    assumption_summary = spousal_support["assumptions"]
+    override_summary = spousal_support["overrides"]
     payor_tax_profile = spousal_support["payorTaxProfile"]
     recipient_tax_profile = spousal_support["recipientTaxProfile"]
     notes = []
@@ -98,6 +133,48 @@ def render_support_report_pdf(
             f"{benefit_assumptions['payorHouseholdAdults']} for payor and "
             f"{benefit_assumptions['recipientHouseholdAdults']} for recipient"
         )
+    assumption_rows = [
+        ("Formula", "With-child shared-custody SSAG-style"),
+        ("Selected point in range", _selected_range_point_label(assumption_summary["selectedRangePoint"])),
+        ("Eligible dependant claimant", spousal_support["eligibleDependantClaimant"].capitalize()),
+        (
+            "Benefit allocation",
+            "Explicit household allocation"
+            if benefit_assumptions["explicitAllocation"]
+            else "Default shared-custody half-split",
+        ),
+        (
+            "Duration inputs",
+            "Provided" if assumption_summary["durationInputsProvided"] else "Not provided",
+        ),
+    ]
+    override_rows = [
+        (
+            "Child support applied",
+            f"{_format_currency(override_summary['childSupport']['appliedNetMonthly'])} per month",
+        ),
+        (
+            "Child support guideline",
+            f"{_format_currency(override_summary['childSupport']['guidelineNetMonthly'])} per month",
+        ),
+        (
+            "Fixed total support",
+            _format_currency(override_summary["spousalSupport"]["fixedTotalSupportAnnual"])
+            if override_summary["spousalSupport"]["fixedTotalSupportApplied"]
+            else "None",
+        ),
+        (
+            "Separate spousal incomes",
+            "Applied"
+            if override_summary["incomeAdjustments"]["separateSpousalIncomesApplied"]
+            else "Not applied",
+        ),
+        (
+            "Trace payload",
+            f"v{spousal_support['calculationTrace']['traceVersion']} in JSON response",
+        ),
+    ]
+    benefit_rows = _render_benefit_rows(spousal_support)
 
     html = f"""
 <!doctype html>
@@ -314,6 +391,28 @@ def render_support_report_pdf(
     </section>
 
     <section class="section">
+      <h2>Assumptions and Overrides</h2>
+      <div class="report-grid">
+        <table>
+          <thead>
+            <tr><th>Assumption</th><th class="numeric">Value</th></tr>
+          </thead>
+          <tbody>
+            {_render_key_value_rows(assumption_rows)}
+          </tbody>
+        </table>
+        <table>
+          <thead>
+            <tr><th>Override / Trace</th><th class="numeric">Value</th></tr>
+          </thead>
+          <tbody>
+            {_render_key_value_rows(override_rows)}
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="section">
       <h2>Tax and Payroll Detail</h2>
       <table>
         <thead>
@@ -348,6 +447,27 @@ def render_support_report_pdf(
             <td><strong>Total deductions</strong></td>
             <td class="numeric"><strong>{_format_currency(-payor_tax_profile['totalDeductions'])}</strong></td>
             <td class="numeric"><strong>{_format_currency(-recipient_tax_profile['totalDeductions'])}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section class="section">
+      <h2>Benefits Detail</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Line item</th>
+            <th class="numeric">Payor Annual</th>
+            <th class="numeric">Recipient Annual</th>
+          </tr>
+        </thead>
+        <tbody>
+          {benefit_rows}
+          <tr>
+            <td><strong>Total modeled benefits</strong></td>
+            <td class="numeric"><strong>{_format_currency(payor_benefits)}</strong></td>
+            <td class="numeric"><strong>{_format_currency(recipient_benefits)}</strong></td>
           </tr>
         </tbody>
       </table>

@@ -110,6 +110,13 @@ def test_spousal_support_estimate_converges_inside_target_band():
     assert result["benefits"]["lineItems"][0]["label"] == "Canada child benefit"
     assert result["ndiChildSupport"]["netAnnual"] == result["childSupport"]["netAnnual"]
     assert result["childSupport"]["tableYear"] == 2025
+    assert result["assumptions"]["selectedRangePoint"] == "mid"
+    assert result["overrides"]["childSupport"]["overrideApplied"] is False
+    assert result["calculationTrace"]["traceVersion"] == 1
+    assert result["calculationTrace"]["ssag"]["selectedRangePoint"] == "mid"
+    assert result["calculationTrace"]["ssag"]["estimatedAnnual"] == result["estimatedSpousalSupportAnnual"]
+    assert result["calculationTrace"]["tax"]["payorAfterSupport"] == result["payorTaxProfile"]
+    assert result["calculationTrace"]["benefits"] == result["benefits"]
     assert result["payorTaxableIncome"] == approx(
         result["payorIncome"] - result["estimatedSpousalSupportAnnual"],
         rel=1e-4,
@@ -192,6 +199,9 @@ def test_spousal_support_estimate_can_use_fixed_total_support():
         50_000 - result["childSupport"]["netAnnual"],
         rel=1e-4,
     )
+    assert result["assumptions"]["selectedRangePoint"] == "fixed_total_override"
+    assert result["overrides"]["spousalSupport"]["fixedTotalSupportApplied"] is True
+    assert result["calculationTrace"]["ssag"]["selectedRangePoint"] == "fixed_total_override"
     assert result["actualNetIncomePayor"] == approx(
         result["payorIncome"]
         - result["payorTax"]
@@ -404,3 +414,6 @@ def test_spousal_support_can_model_claimant_and_household_allocation():
     assert allocated["recipientTax"] < baseline["recipientTax"]
     assert allocated["benefits"]["recipient"]["totalAnnual"] > baseline["benefits"]["recipient"]["totalAnnual"]
     assert allocated["benefits"]["payor"]["totalAnnual"] < baseline["benefits"]["payor"]["totalAnnual"]
+    assert allocated["assumptions"]["benefits"]["explicitAllocation"] is True
+    assert allocated["overrides"]["incomeAdjustments"]["separateSpousalIncomesApplied"] is False
+    assert allocated["calculationTrace"]["assumptions"]["eligibleDependantClaimant"] == "recipient"

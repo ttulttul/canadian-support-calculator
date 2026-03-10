@@ -400,6 +400,7 @@ def calculate_spousal_support_estimate(
         estimated_spousal_support_annual = mid_support_annual
         final_financial_state = mid_state
         history = mid_history
+        selected_range_point = "mid"
     else:
         if fixed_total_support_annual < actual_net_child_support_annual:
             raise ValueError(
@@ -419,6 +420,7 @@ def calculate_spousal_support_estimate(
             spousal_support_annual=estimated_spousal_support_annual
         )
         history = [snapshot(0, estimated_spousal_support_annual, final_financial_state, 0.0)]
+        selected_range_point = "fixed_total_override"
 
     payor_tax_before_support_profile = calculate_tax_profile(
         payor_income,
@@ -456,6 +458,94 @@ def calculate_spousal_support_estimate(
         years_until_child_full_time_school=years_until_child_full_time_school,
         years_until_child_finishes_high_school=years_until_child_finishes_high_school,
     )
+    assumptions = {
+        "formulaType": "with_child_support_shared_custody",
+        "targetRangePercent": {
+            "min": round(target_min_percent, 2),
+            "mid": round(target_midpoint, 2),
+            "max": round(target_max_percent, 2),
+            "equalization": EQUALIZATION_TARGET_SHARE,
+        },
+        "selectedRangePoint": selected_range_point,
+        "eligibleDependantClaimant": normalized_eligible_dependant_claimant,
+        "benefits": final_financial_state["benefits"]["assumptions"],
+        "durationInputsProvided": duration["inputsProvided"],
+        "childSupportTableYear": child_support["tableYear"],
+    }
+    overrides = {
+        "childSupport": {
+            "overrideApplied": child_support["overrideApplied"],
+            "guidelineNetMonthly": round(child_support["guidelineNetMonthly"], 2),
+            "guidelineNetAnnual": round(child_support["guidelineNetAnnual"], 2),
+            "appliedNetMonthly": round(child_support["netMonthly"], 2),
+            "appliedNetAnnual": round(child_support["netAnnual"], 2),
+        },
+        "spousalSupport": {
+            "fixedTotalSupportApplied": fixed_total_support_annual is not None,
+            "fixedTotalSupportAnnual": (
+                None if fixed_total_support_annual is None else round(fixed_total_support_annual, 2)
+            ),
+            "selectedRangePoint": selected_range_point,
+            "selectedAnnual": round(estimated_spousal_support_annual, 2),
+            "selectedMonthly": round(estimated_spousal_support_annual / 12.0, 2),
+        },
+        "incomeAdjustments": {
+            "separateSpousalIncomesApplied": (
+                payor_spousal_income is not None or recipient_spousal_income is not None
+            ),
+            "payorActualIncome": round(payor_income, 2),
+            "recipientActualIncome": round(recipient_income, 2),
+            "payorSpousalIncome": round(active_payor_spousal_income, 2),
+            "recipientSpousalIncome": round(active_recipient_spousal_income, 2),
+        },
+    }
+    calculation_trace = {
+        "traceVersion": 1,
+        "assumptions": assumptions,
+        "overrides": overrides,
+        "childSupport": {
+            "actual": child_support,
+            "formulaNdi": ndi_child_support,
+        },
+        "ssag": {
+            "range": range_results,
+            "selectedRangePoint": selected_range_point,
+            "estimatedAnnual": round(estimated_spousal_support_annual, 2),
+            "estimatedMonthly": round(estimated_spousal_support_annual / 12.0, 2),
+            "duration": duration,
+            "iterations": len(history),
+            "history": history,
+        },
+        "tax": {
+            "payorBeforeSupport": payor_tax_before_support_profile,
+            "payorAfterSupport": final_financial_state["payorTaxProfile"],
+            "recipientBeforeSupport": recipient_tax_before_support_profile,
+            "recipientAfterSupport": final_financial_state["recipientTaxProfile"],
+        },
+        "benefits": final_financial_state["benefits"],
+        "finalState": {
+            "payorTaxableIncome": round(final_financial_state["payorTaxableIncome"], 2),
+            "recipientTaxableIncome": round(final_financial_state["recipientTaxableIncome"], 2),
+            "payorTax": round(payor_tax, 2),
+            "recipientTax": round(recipient_tax, 2),
+            "payorBenefitsAnnual": round(final_financial_state["payorBenefitsAnnual"], 2),
+            "recipientBenefitsAnnual": round(final_financial_state["recipientBenefitsAnnual"], 2),
+            "ndiPayor": round(final_financial_state["actualNdiPayor"], 2),
+            "ndiRecipient": round(final_financial_state["actualNdiRecipient"], 2),
+            "formulaRecipientSharePercent": round(
+                final_financial_state["formulaRecipientSharePercent"],
+                2,
+            ),
+            "actualRecipientSharePercent": round(
+                final_financial_state["actualRecipientSharePercent"],
+                2,
+            ),
+        },
+        "equivalentBeforeTaxIncome": {
+            "payor": round(payor_equivalent_before_tax_income, 2),
+            "recipient": round(recipient_equivalent_before_tax_income, 2),
+        },
+    }
 
     return {
         "jurisdiction": active_table.jurisdiction_code,
@@ -506,6 +596,8 @@ def calculate_spousal_support_estimate(
             "min": round(target_min_percent, 2),
             "max": round(target_max_percent, 2),
         },
+        "assumptions": assumptions,
+        "overrides": overrides,
         "spousalSupportRange": range_results,
         "duration": duration,
         "estimatedSpousalSupportAnnual": round(estimated_spousal_support_annual, 2),
@@ -544,4 +636,5 @@ def calculate_spousal_support_estimate(
         ),
         "iterations": len(history),
         "history": history,
+        "calculationTrace": calculation_trace,
     }

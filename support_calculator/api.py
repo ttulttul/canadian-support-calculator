@@ -230,7 +230,8 @@ def metadata():
                 "a with-child shared-custody SSAG-style range model with low, mid, and high "
                 "estimates derived from formula NDI, plus duration metadata when relationship "
                 "inputs are provided. Tax profiles can optionally apply a claimant-selected "
-                "eligible dependant credit."
+                "eligible dependant credit. The JSON response includes a structured calculation "
+                "trace for audit and regression review."
             ),
         }
     )

@@ -172,6 +172,10 @@ def test_spousal_support_route_accepts_tax_year(client):
     assert payload["benefits"]["recipient"]["totalAnnual"] > 0
     assert payload["payorEquivalentBeforeTaxIncome"] > 0
     assert payload["recipientEquivalentBeforeTaxIncome"] > 0
+    assert payload["assumptions"]["selectedRangePoint"] == "mid"
+    assert payload["overrides"]["childSupport"]["overrideApplied"] is False
+    assert payload["calculationTrace"]["traceVersion"] == 1
+    assert payload["calculationTrace"]["ssag"]["estimatedAnnual"] == payload["estimatedSpousalSupportAnnual"]
 
 
 def test_spousal_support_route_accepts_separate_spousal_incomes(client):
@@ -234,6 +238,9 @@ def test_spousal_support_route_accepts_household_allocation_and_claimant(client)
     assert payload["benefits"]["assumptions"]["recipientChildrenUnderSix"] == 1
     assert payload["recipientTaxProfile"]["eligibleDependantClaimed"] is True
     assert payload["payorTaxProfile"]["eligibleDependantClaimed"] is False
+    assert payload["assumptions"]["benefits"]["explicitAllocation"] is True
+    assert payload["calculationTrace"]["assumptions"]["eligibleDependantClaimant"] == "recipient"
+    assert payload["calculationTrace"]["finalState"]["recipientTax"] == payload["recipientTax"]
 
 
 def test_spousal_support_route_accepts_fixed_total_support(client):
@@ -262,6 +269,8 @@ def test_spousal_support_route_accepts_fixed_total_support(client):
         50000 - payload["childSupport"]["netAnnual"],
         rel=1e-4,
     )
+    assert payload["assumptions"]["selectedRangePoint"] == "fixed_total_override"
+    assert payload["overrides"]["spousalSupport"]["fixedTotalSupportApplied"] is True
 
 
 def test_pdf_export_route_returns_pdf(client):
